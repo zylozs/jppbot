@@ -1,18 +1,29 @@
 import discord
+import botsettings
+from discord.ext import commands
 
-client = discord.Client()
+description = 'A bot to host the weekly JPP sessions.'
 
-@client.event
+bot = commands.Bot(command_prefix='!', description=description)
+botSettings = BotSettings()
+
+@bot.event
 async def on_ready():
-    print('We have logged in as {0.user}'.format(client))
+    print('We have logged in as {0.user}'.format(bot))
 
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def quit(ctx):
+    await bot.close()
 
-    if message.content.startswith('$hello'):
-        await message.channel.send('Hello!')
+@bot.command()
+async def jpp(ctx):
+    await ctx.send(':jpp:')
+
+@bot.command(aliases=['j'])
+async def join(ctx):
+    #stub
+    print('User {0.author} is joining'.format(ctx))
 
 # TODO: Extract token to a file and have the user create their own to run the bot
-client.run('ODM5MTc4OTcyMjAxODc3NTQ0.YJF4Ug.Tq8G4ZaWnegsdDQLov2w4YxR17o')
+bot.run('ODM5MTc4OTcyMjAxODc3NTQ0.YJF4Ug.Tq8G4ZaWnegsdDQLov2w4YxR17o')
