@@ -1,5 +1,5 @@
 import discord
-import botsettings
+from data.botsettings import BotSettings, ChannelType
 from discord.ext import commands
 
 description = 'A bot to host the weekly JPP sessions.'
@@ -24,6 +24,12 @@ async def jpp(ctx):
 async def join(ctx):
     #stub
     print('User {0.author} is joining'.format(ctx))
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def setup(ctx, channel:discord.TextChannel, channelType:ChannelType):
+    print('Channel type: {}'.format(channelType))
+
 
 # TODO: Extract token to a file and have the user create their own to run the bot
 bot.run('ODM5MTc4OTcyMjAxODc3NTQ0.YJF4Ug.Tq8G4ZaWnegsdDQLov2w4YxR17o')
