@@ -2,6 +2,12 @@ from data.playerdata import PlayerData
 from data.mmrrole import MMRRole 
 from data.matchhistorydata import MatchHistoryData
 from enum import Enum
+from discord.ext import commands
+
+class ChannelTypeInvalid(commands.BadArgument):
+    def __init__(self, argument):
+        self.argument = argument
+        super().__init__('Channel Type "{}" is not valid.'.format(argument))
 
 class ChannelType(Enum):
     LOBBY = "lobby"
@@ -15,19 +21,22 @@ class ChannelType(Enum):
         tempArg = argument.lower()
         returnType = ChannelType.INVALID
 
-        if tempArg.__contains__(ChannelType.LOBBY.value):
+        if (tempArg.__contains__(ChannelType.LOBBY.value)):
             returnType = ChannelType.LOBBY
-        elif tempArg.__contains__(ChannelType.RESULTS.value):
+        elif (tempArg.__contains__(ChannelType.RESULTS.value)):
             returnType = ChannelType.RESULTS
-        elif tempArg.__contains__(ChannelType.REPORT.value):
+        elif (tempArg.__contains__(ChannelType.REPORT.value)):
             returnType = ChannelType.REPORT
-        elif tempArg.__contains__(ChannelType.REGISTER.value):
+        elif (tempArg.__contains__(ChannelType.REGISTER.value)):
             returnType = ChannelType.REGISTER
 
-        return returnType
+        if (returnType is ChannelType.INVALID):
+            raise ChannelTypeInvalid(argument)
+        else:
+            return returnType
 
 class BotSettings(object):
-    def __init(self):
+    def __init__(self):
         # Channels used for various bot functionality
         # Type: discord.TextChannel
         self.lobbyChannel = None
