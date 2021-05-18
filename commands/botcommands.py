@@ -1,5 +1,5 @@
 import discord
-from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid
+from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid, GuildTextChannelMismatch
 from discord.ext import commands
 from mongoengine import connect, disconnect
 
@@ -29,6 +29,11 @@ async def quit(ctx):
 async def jpp(ctx):
     await ctx.send(':jpp:')
 
+@bot.command(aliases=['r'])
+async def register(ctx, name:str):
+    #stub
+    print('User {0.author} is registering with name {1}'.format(ctx, name))
+
 @bot.command(aliases=['j'])
 async def join(ctx):
     #stub
@@ -55,6 +60,13 @@ async def clearchannel(ctx, channel:discord.TextChannel, channelType:ChannelType
 async def setup(ctx, channel:discord.TextChannel, channelType:ChannelType):
     print('Channel: {} type: {}'.format(channel, channelType))
 
+    # setup guild if missing
+    if (botSettings.guild is None):
+        botSettings.SetGuild(channel.guild)
+    elif (botSettings.guild is not channel.guild):
+        raise GuildTextChannelMismatch(channel)
+        return
+
     if (channelType is ChannelType.LOBBY):
         botSettings.SetLobbyChannel(channel)
     elif (channelType is ChannelType.REGISTER):
@@ -68,11 +80,18 @@ async def setup(ctx, channel:discord.TextChannel, channelType:ChannelType):
 
 @setup.error
 @clearchannel.error
-async def setup_error(ctx, error):
+@register.error
+async def errorHandling(ctx, error):
     print('Error: {}'.format(error))
     if (isinstance(error, commands.ChannelNotFound)):
         await ctx.send('`{}` is not a valid text channel.'.format(error.argument))
 
     if (isinstance(error, ChannelTypeInvalid)):
         await ctx.send('`{}` is not a valid channel type.'.format(error.argument))
+
+    if (isinstance(error, GuildTextChannelMismatch)):
+        await ctx.send('`{0.mention}` is not in the same server as the other text channels'.format(error.argument))
+
+    if (isinstance(error, commands.errors.MissingRequiredArgument)):
+        await ctx.send('Invalid usage: `{0.name}` is a required argument'.format(error.param))
 
