@@ -11,15 +11,28 @@ class ChannelTypeInvalid(commands.BadArgument):
         self.argument = argument
         super().__init__('Channel Type "{}" is not valid.'.format(argument))
 
+class RegisteredRoleUnitialized(commands.CommandError):
+    def __init__(self):
+        super().__init__('The registered role has not been setup.')
+
+class AdminRoleUnitialized(commands.CommandError):
+    def __init__(self):
+        super().__init__('The admin role has not been setup.')
+
 class GuildTextChannelMismatch(commands.BadArgument):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('Text Channel "{0.mention}" is not in the same guild as the other text channels.'.format(argument))
 
+class GuildRoleMismatch(commands.BadArgument):
+    def __init__(self, argument):
+        self.argument = argument
+        super().__init__('Role {0.mention}" is not in the same guild as the text channels.'.format(argument))
+
 class ChannelType(Enum):
     LOBBY = "lobby"
     RESULTS = "result"
-    REPORT = "report"
+    ADMIN = "admin"
     REGISTER = "register"
     INVALID = "invalid"
 
@@ -32,8 +45,8 @@ class ChannelType(Enum):
             returnType = ChannelType.LOBBY
         elif (tempArg.__contains__(ChannelType.RESULTS.value)):
             returnType = ChannelType.RESULTS
-        elif (tempArg.__contains__(ChannelType.REPORT.value)):
-            returnType = ChannelType.REPORT
+        elif (tempArg.__contains__(ChannelType.ADMIN.value)):
+            returnType = ChannelType.ADMIN
         elif (tempArg.__contains__(ChannelType.REGISTER.value)):
             returnType = ChannelType.REGISTER
 
@@ -48,15 +61,19 @@ class BotSettings(Document):
     _guild = IntField(default=-1)
     _lobbyChannel = IntField(default=-1)
     _resultsChannel = IntField(default=-1)
-    _reportChannel = IntField(default=-1) 
+    _adminChannel = IntField(default=-1) 
     _registerChannel = IntField(default=-1)
+    _registeredRole = IntField(default=-1)
+    _adminRole = IntField(default=-1)
 
     # Settings
-    guild = None
-    lobbyChannel = None
-    resultsChannel = None
-    reportChannel = None
-    registerChannel = None
+    guild = None # discord.Guild
+    lobbyChannel = None # discord.TextChannel
+    resultsChannel = None # discord.TextChannel
+    adminChannel = None # discord.TextChannel
+    registerChannel = None # discord.TextChannel
+    registeredRole = None # discord.Role
+    adminRole = None # discord.Role
 
     def _GetGuild(self, id, bot):
         if (len(bot.guilds) == 0):
@@ -64,26 +81,33 @@ class BotSettings(Document):
 
         return bot.get_guild(id)
 
-    def _GetChannel(self, id, bot):
-        if (len(bot.guilds) == 0 or self.guild is None):
+    def _GetChannel(self, id):
+        if (self.guild is None):
             return None
 
         # This bot is only intended to work in one guild. Grab the one that matches our guild id
         return self.guild.get_channel(id)
 
+    def _GetRole(self, id):
+        if (self.guild is None):
+            return None
+
+        return self.guild.get_role(id)
+
     def InitSettings(self, bot):
         # Channels used for various bot functionality
         # Type: discord.TextChannel
         self.guild = self._GetGuild(self._guild, bot)
-        self.lobbyChannel = self._GetChannel(self._lobbyChannel, bot)
-        self.resultsChannel = self._GetChannel(self._resultsChannel, bot)
-        self.reportChannel = self._GetChannel(self._reportChannel, bot)
-        self.registerChannel = self._GetChannel(self._registerChannel, bot)
+        self.lobbyChannel = self._GetChannel(self._lobbyChannel)
+        self.resultsChannel = self._GetChannel(self._resultsChannel)
+        self.adminChannel = self._GetChannel(self._adminChannel)
+        self.registerChannel = self._GetChannel(self._registerChannel)
 
         # Player data
         # Type: Dictionary<key=discord.User, value=PlayerData>
         self.registeredPlayers = {}
-        self.registeredRole = None # discord.Role
+        self.registeredRole = self._GetRole(self._registeredRole)
+        self.adminRole = self._GetRole(self._adminRole)
 
         # MMR Rank definition
         # Type: Array<MMRRole>
@@ -134,14 +158,14 @@ class BotSettings(Document):
             raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')
 
     # channel: Union[None, discord.TextChannel]
-    def SetReportChannel(self, channel):
+    def SetAdminChannel(self, channel):
         if (channel is None):
-            self.reportChannel = None
-            self._reportChannel = -1
+            self.adminChannel = None
+            self._adminChannel = -1
             self.save()
         elif (isinstance(channel, discord.TextChannel)):
-            self.reportChannel = channel
-            self._reportChannel = channel.id
+            self.adminChannel = channel
+            self._adminChannel = channel.id
             self.save()
         else:
             raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')
@@ -159,7 +183,30 @@ class BotSettings(Document):
         else:
             raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')
 
+    # channel: Union[None, discord.Role]
+    def SetRegisteredRole(self, role):
+        if (role is None):
+            self.registeredRole = None
+            self._registeredRole = -1
+            self.save()
+        elif (isinstance(role, discord.Role)):
+            self.registeredRole = role 
+            self._registeredRole = role.id
+            self.save()
+        else:
+            raise commands.BadArgument('Argument [role] is not None or a valid Discord Role')
 
-
+    # channel: Union[None, discord.Role]
+    def SetAdminRole(self, role):
+        if (role is None):
+            self.adminRole = None
+            self._adminRole = -1
+            self.save()
+        elif (isinstance(role, discord.Role)):
+            self.adminRole = role 
+            self._adminRole = role.id
+            self.save()
+        else:
+            raise commands.BadArgument('Argument [role] is not None or a valid Discord Role')
 
 
