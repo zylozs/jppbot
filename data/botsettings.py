@@ -56,8 +56,7 @@ class ChannelType(Enum):
             return returnType
 
 class BotSettings(Document):
-    # Database fields.  Dont modify or access directly, use the non underscore
-    # versions
+    # Database fields.  Dont modify or access directly, use the non underscore versions
     _guild = IntField(default=-1)
     _lobbyChannel = IntField(default=-1)
     _resultsChannel = IntField(default=-1)
@@ -106,6 +105,11 @@ class BotSettings(Document):
         # Player data
         # Type: Dictionary<key=discord.User, value=PlayerData>
         self.registeredPlayers = {}
+        
+        for player in PlayerData.objects:
+            player.Init(bot)
+            self.registeredPlayers[player.user.id] = player
+
         self.registeredRole = self._GetRole(self._registeredRole)
         self.adminRole = self._GetRole(self._adminRole)
 
@@ -209,4 +213,8 @@ class BotSettings(Document):
         else:
             raise commands.BadArgument('Argument [role] is not None or a valid Discord Role')
 
+    def RegisterUser(self, user:discord.User, name:str):
+        newPlayer = PlayerData()
+        newPlayer.SetUser(user, name)
+        registeredPlayers[user.id] = newPlayer
 

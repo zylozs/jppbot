@@ -44,6 +44,8 @@ async def OnRegisterPlayer(ctx, name:str):
         await ctx.author.add_roles(botSettings.registeredRole, reason='User {0.name} used the register command'.format(ctx.author))
 
         # TODO: Add player to registered players array
+        botSettings.RegisterUser(ctx.author, name)
+
         await SendMessage(ctx, description='You have been registered as `{}`!'.format(name), color=discord.Color.blue())
     except discord.HTTPException:
         await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
@@ -51,16 +53,30 @@ async def OnRegisterPlayer(ctx, name:str):
 @bot.command(name='registeradmin')
 @commands.has_permissions(administrator=True)
 async def OnRegisterAdmin(ctx, member:discord.Member):
-    print('User {0.author} is registering a new admin {1.name}'.format(ctx, member))
+    print('User {0.author} is registering a new admin {1}'.format(ctx, member))
 
     if (botSettings.adminRole is None):
         raise AdminRoleUnitialized()
 
     try:
-        await ctx.member.add_roles(botSettings.adminRole, reason='User {0.author} is registering a new admin {1.name}'.format(ctx, member))
+        await member.add_roles(botSettings.adminRole, reason='User {0.author} is registering a new admin {1}'.format(ctx, member))
         await SendMessage(ctx, description='You have registered {0.mention} as an admin!'.format(member), color=discord.Color.blue())
     except discord.HTTPException:
         await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
+
+@bot.command(name='removeadmin')
+@commands.has_permissions(administrator=True)
+async def OnRemoveAdmin(ctx, member:discord.Member):
+    print('User {0.author} is removing admin permissions from {1}'.format(ctx, member))
+
+    if (botSettings.adminRole is None):
+        raise AdminRoleUnitialized()
+
+    try:
+        await member.remove_roles(botSettings.adminRole, reason='User {0.author} is removing admin permissions from {1}'.format(ctx, member))
+        await SendMessage(ctx, description='You have removed admin permissions from {0.mention}.'.format(member), color=discord.Color.blue())
+    except discord.HTTPException:
+        await SendMessage(ctx, description='Removal failed. Please try again.', color=discord.Color.red())
 
 @bot.command(name='join', aliases=['j'])
 async def OnJoinQueue(ctx):
@@ -148,6 +164,7 @@ async def OnSetAdminRole(ctx, role:discord.Role):
 @OnRegisterPlayer.error
 @OnSetRegisteredRole.error
 @OnRegisterAdmin.error
+@OnRemoveAdmin.error
 @OnSetAdminRole.error
 @OnJoinQueue.error
 @OnRegisterPlayer.error
