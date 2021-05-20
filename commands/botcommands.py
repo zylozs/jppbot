@@ -8,11 +8,15 @@ connect(db="jppbot")
 
 # Load (or create) our settings
 if (len(BotSettings.objects) > 0):
-    botSettings = BotSettings.objects[0]
+    botSettings = BotSettings.objects.first()
 else:
     botSettings = BotSettings()
 
 bot = commands.Bot(command_prefix='!', description='A bot to host the weekly JPP sessions.')
+
+async def SendMessage(ctx, **kwargs):
+    messageEmbed = discord.Embed(**kwargs)
+    await ctx.send(embed=messageEmbed)
 
 @bot.event
 async def on_ready():
@@ -40,9 +44,9 @@ async def OnRegisterPlayer(ctx, name:str):
         await ctx.author.add_roles(botSettings.registeredRole, reason='User {0.name} used the register command'.format(ctx.author))
 
         # TODO: Add player to registered players array
-        await ctx.send('You have been registered as `{}`!'.format(name))
+        await SendMessage(ctx, description='You have been registered as `{}`!'.format(name), color=discord.Color.blue())
     except discord.HTTPException:
-        await ctx.send('Registration failed. Please try again.')
+        await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
 
 @bot.command(name='registeradmin')
 @commands.has_permissions(administrator=True)
@@ -54,9 +58,9 @@ async def OnRegisterAdmin(ctx, member:discord.Member):
 
     try:
         await ctx.member.add_roles(botSettings.adminRole, reason='User {0.author} is registering a new admin {1.name}'.format(ctx, member))
-        await ctx.send('You have registered {0.mention} as an admin!'.format(member))
+        await SendMessage(ctx, description='You have registered {0.mention} as an admin!'.format(member), color=discord.Color.blue())
     except discord.HTTPException:
-        await ctx.send('Registration failed. Please try again.')
+        await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
 
 @bot.command(name='join', aliases=['j'])
 async def OnJoinQueue(ctx):
@@ -77,7 +81,7 @@ async def OnClearChannel(ctx, channel:discord.TextChannel, channelType:ChannelTy
     elif (channelType is ChannelType.RESULTS):
         botSettings.SetResultsChannel(None)
 
-    await ctx.send('{0.mention} has been cleared as the {1.value} channel'.format(channel, channelType))
+    await SendMessage(ctx, description='{0.mention} has been cleared as the {1.value} channel'.format(channel, channelType), color=discord.Color.blue())
 
 @bot.command(name='setchannel')
 @commands.has_permissions(administrator=True)
@@ -99,7 +103,7 @@ async def OnSetChannel(ctx, channel:discord.TextChannel, channelType:ChannelType
     elif (channelType is ChannelType.RESULTS):
         botSettings.SetResultsChannel(channel)
 
-    await ctx.send('{0.mention} has been set as the {1.value} channel'.format(channel, channelType))
+    await SendMessage(ctx, description='{0.mention} has been set as the {1.value} channel'.format(channel, channelType), color=discord.Color.blue())
 
 @bot.command(name='setregisteredrole')
 @commands.has_permissions(administrator=True)
@@ -113,9 +117,12 @@ async def OnSetRegisteredRole(ctx, role:discord.Role):
         raise GuildRoleMismatch(role)
 
     if (botSettings.registeredRole is not None):
-        await ctx.send('The registered role has been updated. This will not affect players who are already registered. The previous role {0.mention} will not be automatically changed on registered players, however the role is purely cosmetic.'.format(botSettings.registeredRole))
+        title = 'Warning: You are changing the registered role.'
+        description = 'This will not affect players who are already registered. The previous role {0.mention} will not be automatically changed on registered players, however the role is purely cosmetic.'.format(botSettings.registeredRole)
+        await SendMessage(ctx, title=title, description=description, color=discord.Color.gold())
 
     botSettings.SetRegisteredRole(role)
+    await SendMessage(ctx, description='The registered role has been updated.', color=discord.Color.blue())
 
 @bot.command(name='setadminrole')
 @commands.has_permissions(administrator=True)
@@ -129,9 +136,12 @@ async def OnSetAdminRole(ctx, role:discord.Role):
         raise GuildRoleMismatch(role)
 
     if (botSettings.adminRole is not None):
-        await ctx.send('The admin role has been updated. This may impact members with the previous admin role {0.mention}. They will need their role updated to regain admin priviledges with the bot.'.format(botSettings.adminRole))
+        title = 'Warning: You are changing the admin role.'
+        description = 'This may impact members with the previous admin role {0.mention}. They will need their role updated to regain admin priviledges with the bot.'.format(botSettings.adminRole)
+        await SendMessage(ctx, title=title, description=description, color=discord.Color.gold())
 
     botSettings.SetAdminRole(role)
+    await SendMessage(ctx, description='The admin role has been updated.', color=discord.Color.blue())
 
 @OnSetChannel.error
 @OnClearChannel.error
@@ -144,26 +154,26 @@ async def OnSetAdminRole(ctx, role:discord.Role):
 async def errorHandling(ctx, error):
     print('Error: {}'.format(error))
     if (isinstance(error, commands.ChannelNotFound)):
-        await ctx.send('`{}` is not a valid text channel.'.format(error.argument))
+        await SendMessage(ctx, description='`{}` is not a valid text channel.'.format(error.argument), color=discord.Color.red())
 
     if (isinstance(error, commands.RoleNotFound)):
-        await ctx.send('`{}` is not a valid role.'.format(error.argument))
+        await SendMessage(ctx, description='`{}` is not a valid role.'.format(error.argument), color=discord.Color.red())
 
     if (isinstance(error, ChannelTypeInvalid)):
-        await ctx.send('`{}` is not a valid channel type.'.format(error.argument))
+        await SendMessage(ctx, description='`{}` is not a valid channel type.'.format(error.argument), color=discord.Color.red())
 
     if (isinstance(error, RegisteredRoleUnitialized)):
-        await ctx.send('The registered role has not been setup yet.')
+        await SendMessage(ctx, description='The registered role has not been setup yet.', color=discord.Color.red())
 
     if (isinstance(error, AdminRoleUnitialized)):
-        await ctx.send('The admin role has not been setup yet.')
+        await SendMessage(ctx, description='The admin role has not been setup yet.', color=discord.Color.red())
 
     if (isinstance(error, GuildTextChannelMismatch)):
-        await ctx.send('`{0.mention}` is not in the same server as the other text channels'.format(error.argument))
+        await SendMessage(ctx, description='`{0.mention}` is not in the same server as the other text channels'.format(error.argument), color=discord.Color.red())
 
     if (isinstance(error, GuildRoleMismatch)):
-        await ctx.send('`{0.mention}` is not in the same server as the text channels'.format(error.argument))
+        await SendMessage(ctx, description='`{0.mention}` is not in the same server as the text channels'.format(error.argument), color=discord.Color.red())
 
     if (isinstance(error, commands.errors.MissingRequiredArgument)):
-        await ctx.send('Invalid usage: `{0.name}` is a required argument'.format(error.param))
+        await SendMessage(ctx, description='Invalid usage: `{0.name}` is a required argument'.format(error.param), color=discord.Color.red())
 
