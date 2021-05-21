@@ -18,14 +18,32 @@ class PlayerData(Document):
     name = '' # The name choosen by the user when registering
     user = None # discord.User
 
-    def Init(self, bot):
-        mmr = _mmr
-        matchesPlayed = _matchesPlayed
-        wins = _wins
-        loses = _loses
-        name = _name
-        user = bot.get_user(_user)
+    async def Init(self, bot):
+        self.mmr = self._mmr
+        self.matchesPlayed = self._matchesPlayed
+        self.wins = self._wins
+        self.loses = self._loses
+        self.name = self._name
+        self.user = await bot.fetch_user(self._user)
 
+    def UpdateData(mmrDelta:int, isWin:bool):
+        # Update cache
+        self.mmr += mmrDelta
+
+        if (isWin):
+            self.wins += 1
+        else:
+            self.loses += 1
+
+        self.matchesPlayed += 1
+
+        # Update database
+        self._mmr = self.mmr
+        self._wins = self.wins
+        self._loses = self.loses
+        self._matchesPlayed = self.matchesPlayed
+        self.save()
+	
     def SetUser(self, user:discord.User, name:str):
         self.user = user
         self._user = user.id

@@ -1,5 +1,6 @@
 import discord
 from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized
+from data.mmrrole import InvalidMMRRole, MMRRoleExists
 from discord.ext import commands
 from mongoengine import connect, disconnect
 
@@ -21,7 +22,7 @@ async def SendMessage(ctx, **kwargs):
 @bot.event
 async def on_ready():
     print('We have logged in as {0.user}'.format(bot))
-    botSettings.InitSettings(bot)
+    await botSettings.InitSettings(bot)
 
 @bot.command(name='quit')
 @commands.has_permissions(administrator=True)
@@ -40,10 +41,13 @@ async def OnRegisterPlayer(ctx, name:str):
     if (botSettings.registeredRole is None):
         raise RegisteredRoleUnitialized()
 
+    if (botSettings.IsUserRegistered(ctx.author)):
+        await SendMessage(ctx, description='You are already registered!', color=discord.Color.blue())
+        return
+
     try:
         await ctx.author.add_roles(botSettings.registeredRole, reason='User {0.name} used the register command'.format(ctx.author))
 
-        # TODO: Add player to registered players array
         botSettings.RegisterUser(ctx.author, name)
 
         await SendMessage(ctx, description='You have been registered as `{}`!'.format(name), color=discord.Color.blue())
@@ -159,6 +163,40 @@ async def OnSetAdminRole(ctx, role:discord.Role):
     botSettings.SetAdminRole(role)
     await SendMessage(ctx, description='The admin role has been updated.', color=discord.Color.blue())
 
+@bot.command(name='addrank')
+@commands.has_permissions(administrator=True)
+async def OnAddRank(ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
+    print('Adding new rank: {} min: {} max: {} delta: {}'.format(role, mmrMin, mmrMax, mmrDelta))
+
+    # setup guild if missing
+    if (botSettings.guild is None):
+        botSettings.SetGuild(role.guild)
+    elif (botSettings.guild is not role.guild):
+        raise GuildRoleMismatch(role)
+
+    if (botSettings.IsValidMMRRole(role)):
+        raise MMRRoleExists(role)
+
+    botSettings.AddMMRRole(role, mmrMin, mmrMax, mmrDelta)
+    await SendMessage(ctx, title='New Rank Added', description='**Rank:** {0.mention}\n**MMR Range:** {1}-{2}\n**MMR Delta:** +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
+
+@bot.command(name='updaterank')
+@commands.has_permissions(administrator=True)
+async def OnUpdateRank(ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
+    print('Updating existing rank: {} min: {} max: {} delta: {}'.format(role, mmrMin, mmrMax, mmrDelta))
+
+    # setup guild if missing
+    if (botSettings.guild is None):
+        botSettings.SetGuild(role.guild)
+    elif (botSettings.guild is not role.guild):
+        raise GuildRoleMismatch(role)
+
+    if (not botSettings.IsValidMMRRole(role)):
+        raise InvalidMMRRole(role)
+
+    botSettings.UpdateMMRRole(role, mmrMin, mmrMax, mmrDelta)
+    await SendMessage(ctx, title='Rank Updated', description='**Rank:** {0.mention}\n**MMR Range:** {1}-{2}\n**MMR Delta:** +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
+
 @OnSetChannel.error
 @OnClearChannel.error
 @OnRegisterPlayer.error
@@ -168,29 +206,40 @@ async def OnSetAdminRole(ctx, role:discord.Role):
 @OnSetAdminRole.error
 @OnJoinQueue.error
 @OnRegisterPlayer.error
+@OnAddRank.error
+@OnUpdateRank.error
 async def errorHandling(ctx, error):
     print('Error: {}'.format(error))
     if (isinstance(error, commands.ChannelNotFound)):
         await SendMessage(ctx, description='`{}` is not a valid text channel.'.format(error.argument), color=discord.Color.red())
 
-    if (isinstance(error, commands.RoleNotFound)):
+    elif (isinstance(error, commands.RoleNotFound)):
         await SendMessage(ctx, description='`{}` is not a valid role.'.format(error.argument), color=discord.Color.red())
 
-    if (isinstance(error, ChannelTypeInvalid)):
+    elif (isinstance(error, ChannelTypeInvalid)):
         await SendMessage(ctx, description='`{}` is not a valid channel type.'.format(error.argument), color=discord.Color.red())
 
-    if (isinstance(error, RegisteredRoleUnitialized)):
+    elif (isinstance(error, RegisteredRoleUnitialized)):
         await SendMessage(ctx, description='The registered role has not been setup yet.', color=discord.Color.red())
 
-    if (isinstance(error, AdminRoleUnitialized)):
+    elif (isinstance(error, AdminRoleUnitialized)):
         await SendMessage(ctx, description='The admin role has not been setup yet.', color=discord.Color.red())
 
-    if (isinstance(error, GuildTextChannelMismatch)):
+    elif (isinstance(error, GuildTextChannelMismatch)):
         await SendMessage(ctx, description='`{0.mention}` is not in the same server as the other text channels'.format(error.argument), color=discord.Color.red())
 
-    if (isinstance(error, GuildRoleMismatch)):
+    elif (isinstance(error, GuildRoleMismatch)):
         await SendMessage(ctx, description='`{0.mention}` is not in the same server as the text channels'.format(error.argument), color=discord.Color.red())
 
-    if (isinstance(error, commands.errors.MissingRequiredArgument)):
+    elif (isinstance(error, InvalidMMRRole)):
+        await SendMessage(ctx, description='{0.mention} is not a valid rank.'.format(error.argument), color=discord.Color.red())
+
+    elif (isinstance(error, MMRRoleExists)):
+        await SendMessage(ctx, description='{0.mention} is already a rank.'.format(error.argument), color=discord.Color.red())
+
+    elif (isinstance(error, commands.errors.MissingRequiredArgument)):
         await SendMessage(ctx, description='Invalid usage: `{0.name}` is a required argument'.format(error.param), color=discord.Color.red())
+
+    elif (isinstance(error, commands.BadArgument)):
+        await SendMessage(ctx, description='Bad Argument: {}'.format(error), color=discord.Color.red())
 

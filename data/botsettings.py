@@ -56,7 +56,8 @@ class ChannelType(Enum):
             return returnType
 
 class BotSettings(Document):
-    # Database fields.  Dont modify or access directly, use the non underscore versions
+    # Database fields.  Dont modify or access directly, use the non underscore
+    # versions
     _guild = IntField(default=-1)
     _lobbyChannel = IntField(default=-1)
     _resultsChannel = IntField(default=-1)
@@ -84,7 +85,8 @@ class BotSettings(Document):
         if (self.guild is None):
             return None
 
-        # This bot is only intended to work in one guild. Grab the one that matches our guild id
+        # This bot is only intended to work in one guild.  Grab the one that
+        # matches our guild id
         return self.guild.get_channel(id)
 
     def _GetRole(self, id):
@@ -93,7 +95,7 @@ class BotSettings(Document):
 
         return self.guild.get_role(id)
 
-    def InitSettings(self, bot):
+    async def InitSettings(self, bot):
         # Channels used for various bot functionality
         # Type: discord.TextChannel
         self.guild = self._GetGuild(self._guild, bot)
@@ -107,15 +109,19 @@ class BotSettings(Document):
         self.registeredPlayers = {}
         
         for player in PlayerData.objects:
-            player.Init(bot)
+            await player.Init(bot)
             self.registeredPlayers[player.user.id] = player
 
         self.registeredRole = self._GetRole(self._registeredRole)
         self.adminRole = self._GetRole(self._adminRole)
 
         # MMR Rank definition
-        # Type: Array<MMRRole>
-        self.mmrRoles = []
+        # Type: Dictionary<key=discord.Role, value=MMRRole>
+        self.mmrRoles = {}
+
+        for role in MMRRole.objects:
+            role.Init(self.guild)
+            self.mmrRoles[role.role.id] = role 
 
         # Historical match data
         # Type: Array<MatchHistoryData>
@@ -151,8 +157,8 @@ class BotSettings(Document):
     # channel: Union[None, discord.TextChannel]
     def SetResultsChannel(self, channel):
         if (channel is None):
-            self.resultsChannel= None
-            self._resultsChannel= -1
+            self.resultsChannel = None
+            self._resultsChannel = -1
             self.save()
         elif (isinstance(channel, discord.TextChannel)):
             self.resultsChannel = channel
@@ -216,5 +222,19 @@ class BotSettings(Document):
     def RegisterUser(self, user:discord.User, name:str):
         newPlayer = PlayerData()
         newPlayer.SetUser(user, name)
-        registeredPlayers[user.id] = newPlayer
+        self.registeredPlayers[user.id] = newPlayer
+
+    def AddMMRRole(self, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
+        newRole = MMRRole()
+        newRole.SetData(role, mmrMin, mmrMax, mmrDelta)
+        self.mmrRoles[role.id] = newRole 
+
+    def UpdateMMRRole(self, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
+        self.mmrRoles[role.id].UpdateData(mmrMin, mmrMax, mmrDelta)
+
+    def IsUserRegistered(self, user:discord.User):
+        return user.id in self.registeredPlayers
+
+    def IsValidMMRRole(self, role:discord.Role):
+        return role.id in self.mmrRoles
 
