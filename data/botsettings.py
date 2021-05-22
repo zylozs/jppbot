@@ -232,6 +232,20 @@ class BotSettings(Document):
     def UpdateMMRRole(self, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
         self.mmrRoles[role.id].UpdateData(mmrMin, mmrMax, mmrDelta)
 
+    def RemoveMMRRole(self, role:discord.Role):
+        self.mmrRoles[role.id].delete() # remove entry from database
+        del self.mmrRoles[role.id]
+
+    def IsMMRRoleRangeValid(self, mmrMin, mmrMax):
+        for role in self.mmrRoles.values():
+            if ((role.mmrMin <= mmrMin <= role.mmrMax) or (role.mmrMin <= mmrMax <= role.mmrMax)):
+                return False
+
+        return True
+
+    def GetSortedMMRRoles(self):
+        return sorted(self.mmrRoles.values(), key=lambda role: role.mmrMin)
+
     def IsUserRegistered(self, user:discord.User):
         return user.id in self.registeredPlayers
 

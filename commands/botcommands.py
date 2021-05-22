@@ -1,6 +1,6 @@
 import discord
 from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized
-from data.mmrrole import InvalidMMRRole, MMRRoleExists
+from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict
 from discord.ext import commands
 from mongoengine import connect, disconnect
 
@@ -17,6 +17,15 @@ bot = commands.Bot(command_prefix='!', description='A bot to host the weekly JPP
 
 async def SendMessage(ctx, **kwargs):
     messageEmbed = discord.Embed(**kwargs)
+
+    await ctx.send(embed=messageEmbed)
+
+async def SendMessageWithFields(ctx, fields, **kwargs):
+    messageEmbed = discord.Embed(**kwargs)
+
+    for field in fields: 
+        messageEmbed.add_field(name=field['name'], value=field['value'], inline=field['inline'])
+
     await ctx.send(embed=messageEmbed)
 
 @bot.event
@@ -177,8 +186,11 @@ async def OnAddRank(ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int
     if (botSettings.IsValidMMRRole(role)):
         raise MMRRoleExists(role)
 
+    if (not botSettings.IsMMRRoleRangeValid(mmrMin, mmrMax)):
+        raise MMRRoleRangeConflict()
+
     botSettings.AddMMRRole(role, mmrMin, mmrMax, mmrDelta)
-    await SendMessage(ctx, title='New Rank Added', description='**Rank:** {0.mention}\n**MMR Range:** {1}-{2}\n**MMR Delta:** +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
+    await SendMessage(ctx, title='New Rank Added', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
 
 @bot.command(name='updaterank')
 @commands.has_permissions(administrator=True)
@@ -194,8 +206,52 @@ async def OnUpdateRank(ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:
     if (not botSettings.IsValidMMRRole(role)):
         raise InvalidMMRRole(role)
 
+    if (not botSettings.IsMMRRoleRangeValid(mmrMin, mmrMax)):
+        raise MMRRoleRangeConflict()
+
     botSettings.UpdateMMRRole(role, mmrMin, mmrMax, mmrDelta)
-    await SendMessage(ctx, title='Rank Updated', description='**Rank:** {0.mention}\n**MMR Range:** {1}-{2}\n**MMR Delta:** +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
+    await SendMessage(ctx, title='Rank Updated', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
+
+@bot.command(name='removerank')
+@commands.has_permissions(administrator=True)
+async def OnRemoveRank(ctx, role:discord.Role):
+    print('Removing rank: {}'.format(role))
+
+    # setup guild if missing
+    if (botSettings.guild is None):
+        botSettings.SetGuild(role.guild)
+    elif (botSettings.guild is not role.guild):
+        raise GuildRoleMismatch(role)
+
+    if (not botSettings.IsValidMMRRole(role)):
+        raise InvalidMMRRole(role)
+
+    mmrMin = botSettings.mmrRoles[role.id].mmrMin
+    mmrMax = botSettings.mmrRoles[role.id].mmrMax
+    mmrDelta = botSettings.mmrRoles[role.id].mmrDelta
+
+    botSettings.RemoveMMRRole(role)
+    await SendMessage(ctx, title='Rank Removed', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
+
+@bot.command(name='ranks')
+async def OnShowRanks(ctx):
+    print('Showing ranks')
+
+    description = None
+    roles = botSettings.GetSortedMMRRoles()
+    fields = []
+
+    for role in roles:
+        field = {}
+        field['name'] = '{0.name}'.format(role.role)
+        field['value'] = 'Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role.role, role.mmrMin, role.mmrMax, role.mmrDelta)
+        field['inline'] = False
+        fields.append(field)
+
+    if (len(fields) == 0):
+        await SendMessage(ctx, description='There are currently no ranks.', color=discord.Color.blue())
+    else:
+        await SendMessageWithFields(ctx, fields=fields, color=discord.Color.blue())
 
 @OnSetChannel.error
 @OnClearChannel.error
@@ -208,6 +264,8 @@ async def OnUpdateRank(ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:
 @OnRegisterPlayer.error
 @OnAddRank.error
 @OnUpdateRank.error
+@OnRemoveRank.error
+@OnShowRanks.error
 async def errorHandling(ctx, error):
     print('Error: {}'.format(error))
     if (isinstance(error, commands.ChannelNotFound)):
@@ -236,6 +294,9 @@ async def errorHandling(ctx, error):
 
     elif (isinstance(error, MMRRoleExists)):
         await SendMessage(ctx, description='{0.mention} is already a rank.'.format(error.argument), color=discord.Color.red())
+
+    elif (isinstance(error, MMRRoleRangeConflict)):
+        await SendMessage(ctx, description='The MMR Range you provided overlaps with another rank.', color=discord.Color.red())
 
     elif (isinstance(error, commands.errors.MissingRequiredArgument)):
         await SendMessage(ctx, description='Invalid usage: `{0.name}` is a required argument'.format(error.param), color=discord.Color.red())

@@ -7,6 +7,10 @@ class InvalidMMRRole(commands.BadArgument):
         self.argument = argument
         super().__init__('Role {0.mention}" is not a valid MMR Role.'.format(argument))
 
+class MMRRoleRangeConflict(commands.BadArgument):
+    def __init__(self):
+        super().__init__('MMR Role range conflicts with another MMR Role\'s range.')
+
 class MMRRoleExists(commands.BadArgument):
     def __init__(self, argument):
         self.argument = argument
