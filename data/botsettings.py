@@ -1,6 +1,7 @@
 from data.playerdata import PlayerData
 from data.mmrrole import MMRRole 
 from data.matchhistorydata import MatchHistoryData
+from data.siegemap import SiegeMap
 from enum import Enum
 from discord.ext import commands
 from mongoengine import Document, IntField 
@@ -75,6 +76,10 @@ class BotSettings(Document):
     registeredRole = None # discord.Role
     adminRole = None # discord.Role
 
+    registeredPlayers = {}
+    mmrRoles = {}
+    maps = {}
+
     def _GetGuild(self, id, bot):
         if (len(bot.guilds) == 0):
             return None
@@ -122,6 +127,13 @@ class BotSettings(Document):
         for role in MMRRole.objects:
             role.Init(self.guild)
             self.mmrRoles[role.role.id] = role 
+
+        # Maps
+        self.maps = {}
+
+        for _map in SiegeMap.objects:
+            _map.Init()
+            self.maps[_map.name.lower()] = _map
 
         # Historical match data
         # Type: Array<MatchHistoryData>
@@ -236,6 +248,15 @@ class BotSettings(Document):
         self.mmrRoles[role.id].delete() # remove entry from database
         del self.mmrRoles[role.id]
 
+    def AddMap(self, name:str):
+        _map = SiegeMap()
+        _map.SetName(name)
+        self.maps[name.lower()] = _map
+    
+    def RemoveMap(self, name:str):
+        self.maps[name.lower()].delete() # remove entry from database
+        del self.maps[name.lower()]
+
     def IsMMRRoleRangeValid(self, mmrMin, mmrMax):
         for role in self.mmrRoles.values():
             if ((role.mmrMin <= mmrMin <= role.mmrMax) or (role.mmrMin <= mmrMax <= role.mmrMax)):
@@ -246,9 +267,15 @@ class BotSettings(Document):
     def GetSortedMMRRoles(self):
         return sorted(self.mmrRoles.values(), key=lambda role: role.mmrMin)
 
+    def GetSortedMaps(self):
+        return sorted(self.maps.values(), key=lambda _map : _map.name.lower())
+
     def IsUserRegistered(self, user:discord.User):
         return user.id in self.registeredPlayers
 
     def IsValidMMRRole(self, role:discord.Role):
         return role.id in self.mmrRoles
+
+    def DoesMapExist(self, name:str):
+        return name.lower() in self.maps
 

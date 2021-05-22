@@ -27,6 +27,9 @@
     <Compile Include="data\botsettings.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="data\siegemap.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="jppbot.py" />
     <Compile Include="data\matchhistorydata.py">
       <SubType>Code</SubType>

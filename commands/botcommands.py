@@ -1,6 +1,7 @@
 import discord
 from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict
+from data.siegemap import MapExists, InvalidMap 
 from discord.ext import commands
 from mongoengine import connect, disconnect
 
@@ -237,7 +238,6 @@ async def OnRemoveRank(ctx, role:discord.Role):
 async def OnShowRanks(ctx):
     print('Showing ranks')
 
-    description = None
     roles = botSettings.GetSortedMMRRoles()
     fields = []
 
@@ -253,6 +253,48 @@ async def OnShowRanks(ctx):
     else:
         await SendMessageWithFields(ctx, fields=fields, color=discord.Color.blue())
 
+@bot.command(name='addmap')
+@commands.has_permissions(administrator=True)
+async def OnAddMap(ctx, name:str):
+    print('Adding map: {}'.format(name))
+
+    if (botSettings.DoesMapExist(name)):
+        raise MapExists(name)
+
+    botSettings.AddMap(name)
+    await SendMessage(ctx, description='`{}` has been added as a map.'.format(name), color=discord.Color.blue())
+
+@bot.command(name='removemap')
+@commands.has_permissions(administrator=True)
+async def OnRemoveMap(ctx, name:str):
+    print('Removing map: {}'.format(name))
+
+    if (not botSettings.DoesMapExist(name)):
+        raise InvalidMap(name)
+
+    botSettings.RemoveMap(name)
+    await SendMessage(ctx, description='`{}` has been removed as a map.'.format(name), color=discord.Color.blue())
+
+@bot.command(name='maps')
+async def OnShowMaps(ctx):
+    print('Showing maps')
+
+    maps = botSettings.GetSortedMaps()
+    fields = []
+
+    for map in maps:
+        field = {}
+        field['name'] = '{}'.format(map.name)
+        field['value'] = 'Times Played: {}'.format(map.timesPlayed)
+        field['inline'] = False
+        fields.append(field)
+
+    if (len(fields) == 0):
+        await SendMessage(ctx, description='There are currently no maps.', color=discord.Color.blue())
+    else:
+        await SendMessageWithFields(ctx, fields=fields, color=discord.Color.blue())
+
+
 @OnSetChannel.error
 @OnClearChannel.error
 @OnRegisterPlayer.error
@@ -266,6 +308,8 @@ async def OnShowRanks(ctx):
 @OnUpdateRank.error
 @OnRemoveRank.error
 @OnShowRanks.error
+@OnAddMap.error
+@OnRemoveMap.error
 async def errorHandling(ctx, error):
     print('Error: {}'.format(error))
     if (isinstance(error, commands.ChannelNotFound)):
@@ -297,6 +341,12 @@ async def errorHandling(ctx, error):
 
     elif (isinstance(error, MMRRoleRangeConflict)):
         await SendMessage(ctx, description='The MMR Range you provided overlaps with another rank.', color=discord.Color.red())
+
+    elif (isinstance(error, MapExists)):
+        await SendMessage(ctx, description='{} is already a map'.format(error.argument), color=discord.Color.red())
+
+    elif (isinstance(error, InvalidMap)):
+        await SendMessage(ctx, description='{} is not a valid map.'.format(error.argument), color=discord.Color.red())
 
     elif (isinstance(error, commands.errors.MissingRequiredArgument)):
         await SendMessage(ctx, description='Invalid usage: `{0.name}` is a required argument'.format(error.param), color=discord.Color.red())
