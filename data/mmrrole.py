@@ -16,6 +16,10 @@ class MMRRoleExists(commands.BadArgument):
         self.argument = argument
         super().__init__('Role {0.mention}" is already an MMR Role.'.format(argument))
 
+class NoMMRRoles(commands.BadArgument):
+    def __init__(self):
+        super().__init__('There are no MMR Roles.')
+
 class MMRRole(Document):
     # Database fields.  Dont modify or access directly, use the non underscore versions
     _mmrMin = IntField(default=0)

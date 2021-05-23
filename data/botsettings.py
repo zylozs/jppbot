@@ -30,6 +30,10 @@ class GuildRoleMismatch(commands.BadArgument):
         self.argument = argument
         super().__init__('Role {0.mention}" is not in the same guild as the text channels.'.format(argument))
 
+class InvalidGuild(commands.BadArgument):
+    def __init__(self):
+        super().__init__('There is no guild set.')
+
 class ChannelType(Enum):
     LOBBY = "lobby"
     RESULTS = "result"
@@ -256,6 +260,30 @@ class BotSettings(Document):
     def RemoveMap(self, name:str):
         self.maps[name.lower()].delete() # remove entry from database
         del self.maps[name.lower()]
+
+    def SetMMR(self, user:discord.User, mmr:int):
+        previousMMR = self.registeredPlayers[user.id].mmr
+        self.registeredPlayers[user.id].SetMMR(mmr)
+        return previousMMR
+
+    def GetMMRRole(self, user:discord.User, previousMMR:int = -1):
+        mmr = self.registeredPlayers[user.id].mmr
+        previousRole = None
+        newRole = None
+
+        for role in self.mmrRoles.values():
+            if (role.mmrMin <= mmr <= role.mmrMax):
+                newRole = role
+            if (role.mmrMin <= previousMMR <= role.mmrMax):
+                previousRole = role
+
+        return previousRole, newRole
+
+    def GetAllMMRRoles(self):
+        roles = []
+        for role in self.mmrRoles.values():
+            roles.append(role.role)
+        return roles
 
     def IsMMRRoleRangeValid(self, mmrMin, mmrMax):
         for role in self.mmrRoles.values():

@@ -1,5 +1,11 @@
 from mongoengine import Document, IntField, StringField
 import discord
+from discord.ext import commands
+
+class UserNotRegistered(commands.BadArgument):
+    def __init__(self, argument):
+        self.argument = argument
+        super().__init__('User {0.mention}" is not registered.'.format(argument))
 
 class PlayerData(Document):
     # Database fields.  Dont modify or access directly, use the non underscore versions
@@ -50,4 +56,10 @@ class PlayerData(Document):
         self.name = name
         self._name = name
         self.save()
+
+    def SetMMR(self, mmr:int):
+        self.mmr = mmr
+        self._mmr = mmr
+        self.save()
+
 

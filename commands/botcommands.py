@@ -1,7 +1,8 @@
 import discord
-from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized
-from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict
+from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild 
+from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap 
+from data.playerdata import UserNotRegistered
 from discord.ext import commands
 from mongoengine import connect, disconnect
 
@@ -253,6 +254,112 @@ async def OnShowRanks(ctx):
     else:
         await SendMessageWithFields(ctx, fields=fields, color=discord.Color.blue())
 
+@bot.command(name='setmmr')
+@commands.has_permissions(administrator=True)
+async def OnSetMMR(ctx, member:discord.Member, mmr:int):
+    print('Setting MMR on {0} to {1}'.format(member, mmr))
+
+    if (not botSettings.IsUserRegistered(member)):
+        raise UserNotRegistered(member)
+
+    previousMMR = botSettings.SetMMR(member, mmr)
+
+    previousRole, newRole = botSettings.GetMMRRole(member, previousMMR)
+
+    if (previousRole is not None):
+        try:
+            await member.remove_roles(previousRole.role, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
+        except discord.HTTPException:
+            await SendMessage(ctx, description='Failed to remove previous rank. Please try again.', color=discord.Color.red())
+
+    if (newRole is not None):
+        try:
+            await member.add_roles(newRole.role, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
+        except discord.HTTPException:
+            await SendMessage(ctx, description='Failed to add new rank. Please try again.', color=discord.Color.red())
+
+    field = {}
+    field['name'] = 'MMR Updated'
+    field['value'] = 'Player: {0.mention}:\nMMR: {1} -> {2}'.format(member, previousMMR, mmr)
+    field['inline'] = False
+
+    if (previousRole is None and newRole is not None):
+        field['value'] += '\nRank: {0.mention}'.format(newRole.role)
+    elif (previousRole is not None and newRole is not None):
+        field['value'] += '\nRank: {0.mention} -> {1.mention}'.format(previousRole.role, newRole.role)
+
+    await SendMessageWithFields(ctx, fields=[field], color=discord.Color.blue())
+
+@bot.command(name='refreshuser')
+@commands.has_permissions(administrator=True)
+async def OnRefreshUser(ctx, member:discord.Member):
+    print('Refreshing roles for user {}'.format(member))
+
+    if (botSettings.guild is None):
+        raise InvalidGuild()
+
+    if (not botSettings.IsUserRegistered(member)):
+        raise UserNotRegistered(member)
+
+    mmrRoles = botSettings.GetAllMMRRoles()
+
+    if (len(mmrRoles) == 0):
+        raise NoMMRRoles()
+
+    previousRole, newRole = botSettings.GetMMRRole(member)
+
+    # Remove all their previous mmr roles and readd the correct one
+    try:
+        await member.remove_roles(*mmrRoles, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
+    except discord.HTTPException:
+        await SendMessage(ctx, description='Failed to remove previous rank from {0.mention}. Please try again.'.format(member), color=discord.Color.red())
+
+    try:
+        await member.add_roles(newRole.role, botSettings.registeredRole, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
+    except discord.HTTPException:
+        await SendMessage(ctx, description='Failed to add current rank to {0.mention}. Please try again.'.format(member), color=discord.Color.red())
+
+    await SendMessage(ctx, description='Ranks have been updated on {0.mention}'.format(member), color=discord.Color.blue())
+
+@bot.command(name='refreshusers')
+@commands.has_permissions(administrator=True)
+async def OnRefreshUsers(ctx):
+    print('Refreshing roles on all users')
+
+    if (botSettings.guild is None):
+        raise InvalidGuild()
+
+    mmrRoles = botSettings.GetAllMMRRoles()
+
+    if (len(mmrRoles) == 0):
+        raise NoMMRRoles()
+
+    for player in botSettings.registeredPlayers.values():
+        previousRole, newRole = botSettings.GetMMRRole(player.user)
+
+        member = None
+        try:
+            member = await botSettings.guild.fetch_member(player.user.id)
+        except discord.HTTPException:
+            await SendMessage(ctx, description='Failed to find member {0.mention}. Ignoring this user.'.format(player.user), color=discord.Color.gold())
+
+        # Just ignore users who aren't in the guild
+        if (member is None):
+            continue
+
+        # Remove all their previous mmr roles and readd the correct one
+        try:
+            await member.remove_roles(*mmrRoles, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
+        except discord.HTTPException:
+            await SendMessage(ctx, description='Failed to remove previous rank from {0.mention}. Please try again.'.format(member), color=discord.Color.red())
+
+        try:
+            await member.add_roles(newRole.role, botSettings.registeredRole, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
+        except discord.HTTPException:
+            await SendMessage(ctx, description='Failed to add current rank to {0.mention}. Please try again.'.format(member), color=discord.Color.red())
+
+    await SendMessage(ctx, description='Ranks have been updated on all registered players.', color=discord.Color.blue())
+
 @bot.command(name='addmap')
 @commands.has_permissions(administrator=True)
 async def OnAddMap(ctx, name:str):
@@ -310,6 +417,9 @@ async def OnShowMaps(ctx):
 @OnShowRanks.error
 @OnAddMap.error
 @OnRemoveMap.error
+@OnSetMMR.error
+@OnRefreshUser.error
+@OnRefreshUsers.error
 async def errorHandling(ctx, error):
     print('Error: {}'.format(error))
     if (isinstance(error, commands.ChannelNotFound)):
@@ -317,6 +427,9 @@ async def errorHandling(ctx, error):
 
     elif (isinstance(error, commands.RoleNotFound)):
         await SendMessage(ctx, description='`{}` is not a valid role.'.format(error.argument), color=discord.Color.red())
+
+    elif (isinstance(error, commands.MemberNotFound)):
+        await SendMessage(ctx, description='Member not found. You can use their display name (case sensitive), id, or @ them.'.format(), color=discord.Color.red())
 
     elif (isinstance(error, ChannelTypeInvalid)):
         await SendMessage(ctx, description='`{}` is not a valid channel type.'.format(error.argument), color=discord.Color.red())
@@ -347,6 +460,12 @@ async def errorHandling(ctx, error):
 
     elif (isinstance(error, InvalidMap)):
         await SendMessage(ctx, description='{} is not a valid map.'.format(error.argument), color=discord.Color.red())
+
+    elif (isinstance(error, InvalidGuild)):
+        await SendMessage(ctx, description='There is no guild set.', color=discord.Color.red())
+
+    elif (isinstance(error, NoMMRRoles)):
+        await SendMessage(ctx, description='There are no ranks.', color=discord.Color.red())
 
     elif (isinstance(error, commands.errors.MissingRequiredArgument)):
         await SendMessage(ctx, description='Invalid usage: `{0.name}` is a required argument'.format(error.param), color=discord.Color.red())
