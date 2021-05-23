@@ -32,14 +32,15 @@ class PlayerData(Document):
 		self.name = self._name
 		self.user = await bot.fetch_user(self._user)
 
-	def UpdateData(mmrDelta:int, isWin:bool):
+	def UpdateData(self, mmrDelta:int, isWin:bool):
 		# Update cache
-		self.mmr += mmrDelta
 
 		if (isWin):
 			self.wins += 1
+			self.mmr += mmrDelta
 		else:
 			self.loses += 1
+			self.mmr -= mmrDelta
 
 		self.matchesPlayed += 1
 

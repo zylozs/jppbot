@@ -1,15 +1,22 @@
 import discord
 
 async def SendMessage(ctx, **kwargs):
+   return await SendChannelMessage(ctx.channel, **kwargs) 
+
+async def SendChannelMessage(channel:discord.TextChannel, **kwargs):
     messageEmbed = discord.Embed(**kwargs)
 
-    await ctx.send(embed=messageEmbed)
+    if 'fields' in kwargs:
+        for field in kwargs['fields']: 
+            messageEmbed.add_field(name=field['name'], value=field['value'], inline=field['inline'])
 
-async def SendMessageWithFields(ctx, fields, **kwargs):
-    messageEmbed = discord.Embed(**kwargs)
+    if 'footer' in kwargs:
+        messageEmbed.set_footer(text=kwargs['footer'])
 
-    for field in fields: 
-        messageEmbed.add_field(name=field['name'], value=field['value'], inline=field['inline'])
+    message = await channel.send(embed=messageEmbed)
 
-    await ctx.send(embed=messageEmbed)
+    if 'reactions' in kwargs:
+        for reaction in kwargs['reactions']:
+            await message.add_reaction(reaction)
 
+    return message
