@@ -1,8 +1,10 @@
 import discord
-from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild 
+from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap 
 from data.playerdata import UserNotRegistered
+from services.matchservice import MatchService, PlayerAlreadyQueued, PlayerNotQueued
+from utils.chatutils import SendMessage, SendMessageWithFields
 from discord.ext import commands
 from mongoengine import connect, disconnect
 
@@ -15,20 +17,17 @@ if (len(BotSettings.objects) > 0):
 else:
     botSettings = BotSettings()
 
+matchService = MatchService()
+matchService.Init(botSettings)
+
 bot = commands.Bot(command_prefix='!', description='A bot to host the weekly JPP sessions.')
 
-async def SendMessage(ctx, **kwargs):
-    messageEmbed = discord.Embed(**kwargs)
-
-    await ctx.send(embed=messageEmbed)
-
-async def SendMessageWithFields(ctx, fields, **kwargs):
-    messageEmbed = discord.Embed(**kwargs)
-
-    for field in fields: 
-        messageEmbed.add_field(name=field['name'], value=field['value'], inline=field['inline'])
-
-    await ctx.send(embed=messageEmbed)
+def IsValidChannel(channelType:ChannelType, includeAdmin=True):
+    async def predicate(ctx):
+        if (not botSettings.IsValidChannel(ctx.channel, channelType, includeAdmin=includeAdmin)):
+            raise InvalidCommandChannel(ctx.channel, channelType)
+        return True
+    return commands.check(predicate)
 
 @bot.event
 async def on_ready():
@@ -46,6 +45,7 @@ async def OnJPP(ctx):
     await ctx.send(':jpp:')
 
 @bot.command(name='register', aliases=['r'])
+@IsValidChannel(ChannelType.REGISTER)
 async def OnRegisterPlayer(ctx, name:str):
     print('User {0.author} is registering with name {1}'.format(ctx, name))
 
@@ -67,6 +67,7 @@ async def OnRegisterPlayer(ctx, name:str):
 
 @bot.command(name='registeradmin')
 @commands.has_permissions(administrator=True)
+@IsValidChannel(ChannelType.ADMIN)
 async def OnRegisterAdmin(ctx, member:discord.Member):
     print('User {0.author} is registering a new admin {1}'.format(ctx, member))
 
@@ -94,9 +95,31 @@ async def OnRemoveAdmin(ctx, member:discord.Member):
         await SendMessage(ctx, description='Removal failed. Please try again.', color=discord.Color.red())
 
 @bot.command(name='join', aliases=['j'])
+@IsValidChannel(ChannelType.LOBBY)
 async def OnJoinQueue(ctx):
-    #stub
-    print('User {0.author} is joining'.format(ctx))
+    print('User {0.author} is joining queue.'.format(ctx))
+
+    if (matchService.IsPlayerQueued(ctx.author)):
+        raise PlayerAlreadyQueued(ctx.author)
+
+    await matchService.JoinQueue(ctx, ctx.author)
+
+@bot.command(name='leave', aliases=['l'])
+@IsValidChannel(ChannelType.LOBBY)
+async def OnLeaveQueue(ctx):
+    print('User {0.author} is leaving queue.'.format(ctx))
+
+    if (not matchService.IsPlayerQueued(ctx.author)):
+        raise PlayerNotQueued(ctx.author)
+
+    await matchService.LeaveQueue(ctx, ctx.author)
+
+@bot.command(name='queue')
+@IsValidChannel(ChannelType.LOBBY)
+async def OnShowQueue(ctx):
+    print('Showing queue')
+
+    await matchService.ShowQueue(ctx)
 
 @bot.command(name='clearchannel')
 @commands.has_permissions(administrator=True)
@@ -401,7 +424,6 @@ async def OnShowMaps(ctx):
     else:
         await SendMessageWithFields(ctx, fields=fields, color=discord.Color.blue())
 
-
 @OnSetChannel.error
 @OnClearChannel.error
 @OnRegisterPlayer.error
@@ -410,6 +432,8 @@ async def OnShowMaps(ctx):
 @OnRemoveAdmin.error
 @OnSetAdminRole.error
 @OnJoinQueue.error
+@OnLeaveQueue.error
+@OnShowQueue.error
 @OnRegisterPlayer.error
 @OnAddRank.error
 @OnUpdateRank.error
@@ -430,6 +454,9 @@ async def errorHandling(ctx, error):
 
     elif (isinstance(error, commands.MemberNotFound)):
         await SendMessage(ctx, description='Member not found. You can use their display name (case sensitive), id, or @ them.'.format(), color=discord.Color.red())
+
+    elif (isinstance(error, commands.CommandNotFound)):
+        await SendMessage(ctx, description='{} is not a valid command.'.format(error.argument), color=discord.Color.red())
 
     elif (isinstance(error, ChannelTypeInvalid)):
         await SendMessage(ctx, description='`{}` is not a valid channel type.'.format(error.argument), color=discord.Color.red())
@@ -466,6 +493,15 @@ async def errorHandling(ctx, error):
 
     elif (isinstance(error, NoMMRRoles)):
         await SendMessage(ctx, description='There are no ranks.', color=discord.Color.red())
+
+    elif (isinstance(error, PlayerAlreadyQueued)):
+        await SendMessage(ctx, description='You are already in queue.', color=discord.Color.red())
+
+    elif (isinstance(error, PlayerNotQueued)):
+        await SendMessage(ctx, description='You are not currently in queue.', color=discord.Color.red())
+
+    elif (isinstance(error, InvalidCommandChannel)):
+        await SendMessage(ctx, description='{0.mention} is not the correct channel for {1.value} commands.'.format(error.argument, error.type), color=discord.Color.red())
 
     elif (isinstance(error, commands.errors.MissingRequiredArgument)):
         await SendMessage(ctx, description='Invalid usage: `{0.name}` is a required argument'.format(error.param), color=discord.Color.red())

@@ -34,6 +34,12 @@ class InvalidGuild(commands.BadArgument):
     def __init__(self):
         super().__init__('There is no guild set.')
 
+class InvalidCommandChannel(commands.BadArgument):
+    def __init__(self, argument, type):
+        self.argument = argument
+        self.type = type
+        super().__init__('{0.mention} is not the correct channel for {1.value} commands'.format(argument, type))
+
 class ChannelType(Enum):
     LOBBY = "lobby"
     RESULTS = "result"
@@ -266,6 +272,9 @@ class BotSettings(Document):
         self.registeredPlayers[user.id].SetMMR(mmr)
         return previousMMR
 
+    def GetMMR(self, user:discord.User):
+        return self.registeredPlayers[user.id].mmr
+
     def GetMMRRole(self, user:discord.User, previousMMR:int = -1):
         mmr = self.registeredPlayers[user.id].mmr
         previousRole = None
@@ -306,4 +315,20 @@ class BotSettings(Document):
 
     def DoesMapExist(self, name:str):
         return name.lower() in self.maps
+
+    def IsValidChannel(self, channel:discord.TextChannel, channelType:ChannelType, includeAdmin=True):
+        returnType = False
+        if (channel is self.lobbyChannel and channelType is ChannelType.LOBBY):
+            returnType = True
+        elif (channel is self.resultsChannel and channelType is ChannelType.RESULTS):
+            returnType = True
+        elif (channel is self.adminChannel and channelType is ChannelType.ADMIN):
+            returnType = True
+        elif (channel is self.registerChannel and channelType is ChannelType.REGISTER):
+            returnType = True
+
+        if (returnType is False and channel is self.adminChannel and includeAdmin):
+            returnType = True
+
+        return returnType 
 

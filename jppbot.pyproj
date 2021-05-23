@@ -40,10 +40,18 @@
     <Compile Include="data\playerdata.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="services\matchservice.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="utils\chatutils.py">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Folder Include="data\" />
     <Folder Include="commands\" />
+    <Folder Include="utils\" />
+    <Folder Include="services\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

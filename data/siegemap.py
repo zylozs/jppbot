@@ -2,21 +2,21 @@ from mongoengine import Document, IntField, StringField
 from discord.ext import commands
 
 class MapExists(commands.BadArgument):
-    def __init__(self, argument):
-        self.argument = argument
-        super().__init__('{}" is already a map.'.format(argument))
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('{}" is already a map.'.format(argument))
 
 class InvalidMap(commands.BadArgument):
-    def __init__(self, argument):
-        self.argument = argument
-        super().__init__('{}" is not a valid map.'.format(argument))
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('{}" is not a valid map.'.format(argument))
 
 class SiegeMap(Document):
-    # Database fields.  Dont modify or access directly, use the non underscore versions
+	# Database fields.  Dont modify or access directly, use the non underscore versions
 	_timesPlayed = IntField(default=0)
 	_name = StringField(default='')
 
-    # Settings
+	# Settings
 	timesPlayed = 0
 	name = ''
 
