@@ -7,6 +7,17 @@ class InvalidMatchResult(commands.BadArgument):
 		self.argument = argument
 		super().__init__('Match Result "{}" is not valid.'.format(argument))
 
+class MatchIDNotFound(commands.BadArgument):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('Match with id `{}` was not found. The match history either doesn\'t exist for this match or this is not a valid match id.'.format(argument))
+
+class MatchResultIdentical(commands.BadArgument):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('`{}` is identical to the current match result'.format(argument))
+
+
 class MatchResult(Enum):
 	TEAM1VICTORY = 0
 	TEAM2VICTORY = 1
@@ -15,15 +26,23 @@ class MatchResult(Enum):
 
 	@classmethod
 	async def convert(cls, ctx, argument):
-		tempArg = argument.lower()
 		returnType = MatchResult.INVALID
 
-		if (tempArg.__contains__(MatchResult.TEAM1VICTORY.value)):
-			returnType = MatchResult.TEAM1VICTORY
-		elif (tempArg.__contains__(MatchResult.TEAM2VICTORY.value)):
-			returnType = MatchResult.TEAM2VICTORY
-		elif (tempArg.__contains__(MatchResult.CANCELLED.value)):
-			returnType = MatchResult.CANCELLED
+		if (isinstance(argument, int)):
+			if (argument == MatchResult.TEAM1VICTORY.value):
+				returnType = MatchResult.TEAM1VICTORY
+			elif (argument == MatchResult.TEAM2VICTORY.value):
+				returnType = MatchResult.TEAM2VICTORY
+			elif (argument == MatchResult.CANCELLED.value):
+				returnType = MatchResult.CANCELLED
+		elif (isinstance(argument, str)):
+			tempArg = argument.lower()
+			if (tempArg.__contains__('blue') or tempArg.__contains__('team1') or tempArg.__contains__('t1')):
+				returnType = MatchResult.TEAM1VICTORY
+			elif (tempArg.__contains__('orange') or tempArg.__contains__('team2') or tempArg.__contains__('t2')):
+				returnType = MatchResult.TEAM2VICTORY
+			elif (tempArg.__contains__('cancel')):
+				returnType = MatchResult.CANCELLED
 
 		if (returnType is MatchResult.INVALID):
 			raise InvalidMatchResult(argument)
@@ -39,16 +58,16 @@ class MatchHistoryPlayerData(EmbeddedDocument):
 
 class MatchHistoryData(Document):
 	# Database fields.  Dont modify or access directly, use the non underscore versions
-	_winningTeam = ListField(EmbeddedDocumentField(MatchHistoryPlayerData), max_length=5)
-	_losingTeam = ListField(EmbeddedDocumentField(MatchHistoryPlayerData), max_length=5)
+	_team1 = ListField(EmbeddedDocumentField(MatchHistoryPlayerData), max_length=5)
+	_team2 = ListField(EmbeddedDocumentField(MatchHistoryPlayerData), max_length=5)
 	_result = IntField(default=MatchResult.INVALID.value)
 	_map = StringField(default='')
 	_creationTime = StringField(default='')
 	_matchUniqueID = IntField(default=0)
 
-	def StoreData(self, winningTeam, losingTeam, result:MatchResult, selectedMap:str, creationTime:str, id:int):
-		self._winningTeam = winningTeam 
-		self._losingTeam = losingTeam 
+	def StoreData(self, team1, team2, result:MatchResult, selectedMap:str, creationTime:str, id:int):
+		self._team1 = team1 
+		self._team2 = team2 
 		self._result = result.value
 		self._map = selectedMap
 		self._creationTime = creationTime

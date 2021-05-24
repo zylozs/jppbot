@@ -2,9 +2,10 @@ import discord
 from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap 
-from data.playerdata import UserNotRegistered
-from services.matchservice import MatchService, PlayerAlreadyQueued, PlayerNotQueued
-from utils.chatutils import SendMessage
+from data.playerdata import UserNotRegistered, UserAlreadyRegistered
+from data.matchhistorydata import MatchResult, InvalidMatchResult, MatchHistoryData, MatchIDNotFound, MatchResultIdentical
+from services.matchservice import MatchService, PlayerAlreadyQueued, PlayerNotQueued, TeamResult
+from utils.chatutils import SendMessage, SendChannelMessage
 from discord.ext import commands
 from mongoengine import connect, disconnect
 import math
@@ -30,6 +31,18 @@ def IsValidChannel(channelType:ChannelType, includeAdmin=True):
 		return True
 	return commands.check(predicate)
 
+async def RemoveRoles(ctx, member, *rolesToRemove, errorMessage:str=''):
+	try:
+		await member.remove_roles(*rolesToRemove, reason='User {0.author} is updating roles for {1}'.format(ctx, member))
+	except discord.HTTPException:
+		await SendMessage(ctx, description=errorMessage, color=discord.Color.red())
+
+async def AddRoles(ctx, member, *rolesToAdd, errorMessage:str=''):
+	try:
+		await member.add_roles(*rolesToAdd, reason='User {0.author} is updating roles for {1}'.format(ctx, member))
+	except discord.HTTPException:
+		await SendMessage(ctx, description=errorMessage, color=discord.Color.red())
+
 @bot.event
 async def on_ready():
 	print('We have logged in as {0.user}'.format(bot))
@@ -54,8 +67,7 @@ async def OnRegisterPlayer(ctx, name:str):
 		raise RegisteredRoleUnitialized()
 
 	if (botSettings.IsUserRegistered(ctx.author)):
-		await SendMessage(ctx, description='You are already registered!', color=discord.Color.blue())
-		return
+		raise UserAlreadyRegistered(ctx.author)
 
 	try:
 		await ctx.author.add_roles(botSettings.registeredRole, reason='User {0.name} used the register command'.format(ctx.author))
@@ -65,6 +77,15 @@ async def OnRegisterPlayer(ctx, name:str):
 		await SendMessage(ctx, description='You have been registered as `{}`!'.format(name), color=discord.Color.blue())
 	except discord.HTTPException:
 		await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
+
+@bot.command(name='setname')
+async def OnSetName(ctx, name:str):
+	print('User {0.author} is changing their name to {1}'.format(ctx, name))
+
+	if (not botSettings.IsUserRegistered(ctx.author)):
+		raise UserNotRegistered(ctx.author)
+
+	botSettings.ChangeName(ctx.author, name)
 
 @bot.command(name='registeradmin')
 @commands.has_permissions(administrator=True)
@@ -299,16 +320,10 @@ async def OnSetMMR(ctx, member:discord.Member, mmr:int):
 	previousRole, newRole = botSettings.GetMMRRole(member, previousMMR)
 
 	if (previousRole is not None):
-		try:
-			await member.remove_roles(previousRole.role, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
-		except discord.HTTPException:
-			await SendMessage(ctx, description='Failed to remove previous rank. Please try again.', color=discord.Color.red())
-
+		await RemoveRoles(ctx, member, previousRole.role, errorMessage='Failed to remove previous rank. Please try again.')
+		
 	if (newRole is not None):
-		try:
-			await member.add_roles(newRole.role, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
-		except discord.HTTPException:
-			await SendMessage(ctx, description='Failed to add new rank. Please try again.', color=discord.Color.red())
+		await AddRoles(ctx, member, newRole.role, errorMessage='Failed to add new rank. Please try again.')
 
 	field = {}
 	field['name'] = 'MMR Updated'
@@ -341,16 +356,9 @@ async def OnRefreshUser(ctx, member:discord.Member):
 	previousRole, newRole = botSettings.GetMMRRole(member)
 
 	# Remove all their previous mmr roles and readd the correct one
-	try:
-		await member.remove_roles(*mmrRoles, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
-	except discord.HTTPException:
-		await SendMessage(ctx, description='Failed to remove previous rank from {0.mention}. Please try again.'.format(member), color=discord.Color.red())
-
-	try:
-		await member.add_roles(newRole.role, botSettings.registeredRole, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
-	except discord.HTTPException:
-		await SendMessage(ctx, description='Failed to add current rank to {0.mention}. Please try again.'.format(member), color=discord.Color.red())
-
+	await RemoveRoles(ctx, member, *mmrRoles, errorMessage='Failed to remove previous rank from {0.mention}. Please try again.'.format(member))
+	await AddRoles(ctx, member, newRole.role, botSettings.registeredRole, errorMessage='Failed to add current rank to {0.mention}. Please try again.'.format(member))
+	
 	await SendMessage(ctx, description='Ranks have been updated on {0.mention}'.format(member), color=discord.Color.blue())
 
 @bot.command(name='refreshusers')
@@ -380,15 +388,8 @@ async def OnRefreshUsers(ctx):
 			continue
 
 		# Remove all their previous mmr roles and readd the correct one
-		try:
-			await member.remove_roles(*mmrRoles, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
-		except discord.HTTPException:
-			await SendMessage(ctx, description='Failed to remove previous rank from {0.mention}. Please try again.'.format(member), color=discord.Color.red())
-
-		try:
-			await member.add_roles(newRole.role, botSettings.registeredRole, reason='User {0.author} is updating MMR Role for {1}'.format(ctx, member))
-		except discord.HTTPException:
-			await SendMessage(ctx, description='Failed to add current rank to {0.mention}. Please try again.'.format(member), color=discord.Color.red())
+		await RemoveRoles(ctx, member, *mmrRoles, errorMessage='Failed to remove previous rank from {0.mention}. Please try again.'.format(member))
+		await AddRoles(ctx, member, newRole.role, botSettings.registeredRole, errorMessage='Failed to add current rank to {0.mention}. Please try again.'.format(member))
 
 	await SendMessage(ctx, description='Ranks have been updated on all registered players.', color=discord.Color.blue())
 
@@ -481,10 +482,133 @@ async def OnShowLeaderboards(ctx, page:int=1):
 	else:
 		await SendMessage(ctx, title=title, description=description, footer=footer, color=discord.Color.blue())
 
+@bot.command('recallmatch')
+@commands.has_permissions(administrator=True)
+async def OnRecallMatch(ctx, matchID:int, newResult:MatchResult):
+	print('User {} is recalling the match {} with a new result: {}'.format(ctx.author, matchID, newResult))
+
+	if (newResult == MatchResult.INVALID):
+		raise InvalidMatchResult(newResult)
+
+	# Get the match from the database if it exists
+	match = MatchHistoryData.objects(_matchUniqueID=matchID).first()
+
+	# The match ID is either invalid or we have no records of the match
+	if (match is None):
+		raise MatchIDNotFound(matchID)
+
+	if (match._result == newResult.value):
+		raise MatchResultIdentical(newResult)
+
+	def GetTeamField(teamName:str, teamResult:TeamResult):
+		teamField = {}
+		teamField['name'] = '{}: Team {}'.format('Winner' if teamResult == TeamResult.WIN else 'Loser', teamName)
+		teamField['value'] = ''
+		teamField['inline'] = False
+
+		return teamField
+
+	def AddToField(field, isFirst, id, sign, oldMMR, delta, newMMR, oldRole, newRole):
+		if (isFirst):
+			isFirst = False
+		else:
+			field['value'] += '\n'
+
+		field['value'] += '[{}] **MMR:** {} {} {} = {}'.format(botSettings.GetUserNameByID(id), oldMMR, sign, delta, newMMR)
+
+		if (oldRole is not None and newRole is not None):
+			field['value'] += ' **Rank:** {0.mention} -> {1.mention}'.format(oldRole.role, newRole.role)
+
+		return isFirst
+
+	team1Name = 'Blue :blue_square:'
+	team2Name = 'Orange :orange_square:'
+	title = 'Match Results: Game #{}'.format(matchID)
+	footer = 'This match was re-called by {}'.format(ctx.author)
+
+	players = []
+
+	# Determine the team results for before and after to guide how we update the data
+	team1PrevResult = TeamResult.WIN if match._result == MatchResult.TEAM1VICTORY.value else TeamResult.LOSE
+	team2PrevResult = TeamResult.WIN if match._result == MatchResult.TEAM2VICTORY.value else TeamResult.LOSE
+	team1NewResult = TeamResult.WIN if newResult == MatchResult.TEAM1VICTORY else TeamResult.LOSE
+	team2NewResult = TeamResult.WIN if newResult == MatchResult.TEAM2VICTORY else TeamResult.LOSE
+
+	if (match._result == MatchResult.CANCELLED.value):
+		team1PrevResult = TeamResult.CANCEL
+		team2PrevResult = TeamResult.CANCEL
+	if (newResult == MatchResult.CANCELLED):
+		team1NewResult = TeamResult.CANCEL
+		team2NewResult = TeamResult.CANCEL
+
+	team1Field = GetTeamField(team1Name, team1PrevResult)
+	team2Field = GetTeamField(team2Name, team2PrevResult)
+
+	isFirst = True
+	for player in match._team1:
+		oldMMR, newMMR, oldRole, newRole = botSettings.RedoMatchByID(player._id, player._mmrDelta, team1PrevResult, team1NewResult)
+		player._prevMMR = oldMMR
+		player._newMMR = newMMR
+		delta = int(abs(newMMR - oldMMR))
+
+		players.append(player._id)
+
+		sign = '+' if team1NewResult == TeamResult.WIN else '-'
+
+		isFirst = AddToField(team1Field, isFirst, player._id, sign, oldMMR, delta, newMMR, oldRole, newRole)
+			
+	isFirst = True
+	for player in match._team2:
+		oldMMR, newMMR, oldRole, newRole = botSettings.RedoMatchByID(player._id, player._mmrDelta, team2PrevResult, team2NewResult)
+		player._prevMMR = oldMMR
+		player._newMMR = newMMR
+		delta = int(abs(newMMR - oldMMR))
+
+		players.append(player._id)
+
+		sign = '+' if team2NewResult == TeamResult.WIN else '-'
+
+		isFirst = AddToField(team2Field, isFirst, player._id, sign, oldMMR, delta, newMMR, oldRole, newRole)
+
+	match._result = newResult.value
+	match.save()
+
+	if (newResult == MatchResult.TEAM1VICTORY):
+		await SendChannelMessage(botSettings.resultsChannel, title=title, fields=[team1Field, team2Field], footer=footer, color=discord.Color.blue())
+	elif (newResult == MatchResult.TEAM2VICTORY):
+		await SendChannelMessage(botSettings.resultsChannel, title=title, fields=[team2Field, team1Field], footer=footer, color=discord.Color.blue())
+	else:
+		await SendChannelMessage(botSettings.resultsChannel, title=title, description='This match has been cancelled.', footer=footer, color=discord.Color.blue())
+
+	# Now we need to refresh roles for all users on both teams
+	mmrRoles = botSettings.GetAllMMRRoles()
+
+	if (len(mmrRoles) == 0):
+		raise NoMMRRoles()
+
+	for player in players:
+		member = None
+		try:
+			member = await botSettings.guild.fetch_member(player)
+		except discord.HTTPException:
+			await SendMessage(ctx, description='Failed to find member {}. Ignoring this user.'.format(player), color=discord.Color.gold())
+
+		# Just ignore users who aren't in the guild
+		if (member is None):
+			continue
+
+		previousRole, newRole = botSettings.GetMMRRoleByID(player)
+
+		# Remove all their previous mmr roles and readd the correct one
+		await RemoveRoles(ctx, member, *mmrRoles, errorMessage='Failed to remove previous rank from {0.mention}. Please try again.'.format(member))
+		await AddRoles(ctx, member, newRole.role, botSettings.registeredRole, errorMessage='Failed to add current rank to {0.mention}. Please try again.'.format(member))
+
+	await SendChannelMessage(botSettings.adminChannel, description='The ranks of all players in match #{} have been updated.'.format(match._matchUniqueID), color=discord.Color.blue())
 
 @OnSetChannel.error
 @OnClearChannel.error
 @OnRegisterPlayer.error
+@OnSetName.error
 @OnSetRegisteredRole.error
 @OnRegisterAdmin.error
 @OnRemoveAdmin.error
@@ -504,6 +628,7 @@ async def OnShowLeaderboards(ctx, page:int=1):
 @OnRefreshUsers.error
 @OnForceStartMatch.error
 @OnShowLeaderboards.error
+@OnRecallMatch.error
 async def errorHandling(ctx, error):
 	print('Error: {}'.format(error))
 	if (isinstance(error, commands.ChannelNotFound)):
@@ -551,6 +676,9 @@ async def errorHandling(ctx, error):
 	elif (isinstance(error, InvalidGuild)):
 		await SendMessage(ctx, description='There is no guild set.', color=discord.Color.red())
 
+	elif (isinstance(error, InvalidMatchResult)):
+		await SendMessage(ctx, description='`{}` is not a valid Match Result.'.format(argument), color=discord.Color.red())
+
 	elif (isinstance(error, NoMMRRoles)):
 		await SendMessage(ctx, description='There are no ranks.', color=discord.Color.red())
 
@@ -562,6 +690,18 @@ async def errorHandling(ctx, error):
 
 	elif (isinstance(error, InvalidCommandChannel)):
 		await SendMessage(ctx, description='{0.mention} is not the correct channel for {1.value} commands.'.format(error.argument, error.type), color=discord.Color.red())
+
+	elif (isinstance(error, UserNotRegistered)):
+		await SendMessage(ctx, description='User {0.mention} is not registered'.format(error.argument), color=discord.Color.red())
+
+	elif (isinstance(error, UserAlreadyRegistered)):
+		await SendMessage(ctx, description='User {0.mention} is already registered'.format(error.argument), color=discord.Color.red())
+
+	elif (isinstance(error, MatchIDNotFound)):
+		await SendMessage(ctx, description='Match with id `{}` was not found. The match history either doesn\'t exist for this match or this is not a valid match id.'.format(error.argument), color=discord.Color.red())
+
+	elif (isinstance(error, MatchResultIdentical)):
+		await SendMessage(ctx, description='The new match result is the same as the original. Nothing will happen.', color=discord.Color.red())
 
 	elif (isinstance(error, commands.errors.MissingRequiredArgument)):
 		await SendMessage(ctx, description='Invalid usage: `{0.name}` is a required argument'.format(error.param), color=discord.Color.red())

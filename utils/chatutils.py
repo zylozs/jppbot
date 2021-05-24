@@ -8,6 +8,9 @@ async def SendChannelMessage(channel:discord.TextChannel, **kwargs):
 
     if 'fields' in kwargs:
         for field in kwargs['fields']: 
+            if field['value'] == '':
+                field['value'] = 'Empty'
+
             messageEmbed.add_field(name=field['name'], value=field['value'], inline=field['inline'])
 
     if 'footer' in kwargs:

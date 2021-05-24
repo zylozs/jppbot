@@ -3,6 +3,7 @@ from discord.ext import commands
 from utils.chatutils import SendMessage, SendChannelMessage
 from datetime import datetime
 from data.matchhistorydata import MatchResult, MatchHistoryData, MatchHistoryPlayerData
+from enum import Enum
 import random
 
 class PlayerAlreadyQueued(commands.BadArgument):
@@ -38,7 +39,7 @@ class Match(object):
 		team1Name = 'Blue :blue_square:'
 		team2Name = 'Orange :orange_square:'
 
-		if result == MatchResult.TEAM1VICTORY:
+		if result == MatchResult.TEAM1VICTORY or result == MatchResult.CANCELLED:
 			return (self.team1, team1Name, self.team2, team2Name)
 		elif result == MatchResult.TEAM2VICTORY:
 			return (self.team2, team2Name, self.team1, team1Name)
@@ -47,13 +48,44 @@ class Match(object):
 	
 	def StoreMatchHistoryData(self, winnerTeamData, loserTeamData, result:MatchResult):
 		data = MatchHistoryData()
-		data.StoreData(winnerTeamData, loserTeamData, result, self.map, self.creationTime, self.uniqueID)
+
+		if (result == MatchResult.TEAM1VICTORY or result == MatchResult.CANCELLED):
+			data.StoreData(winnerTeamData, loserTeamData, result, self.map, self.creationTime, self.uniqueID)
+		elif (result == MatchResult.TEAM2VICTORY):
+			data.StoreData(loserTeamData, winnerTeamData, result, self.map, self.creationTime, self.uniqueID)
 
 def SumMMR(players):
 	sum = 0
 	for player in players:
 		sum += player[1]
 	return sum
+
+class InvalidTeamResult(commands.BadArgument):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('Team Result "{}" is not valid.'.format(argument))
+
+class TeamResult(Enum):
+	WIN = 0
+	LOSE = 1
+	CANCEL = 2
+	INVALID = 3
+
+	@classmethod
+	async def convert(cls, ctx, argument):
+		returnType = TeamResult.INVALID
+
+		if (argument == TeamResult.WIN.value):
+			returnType = TeamResult.WIN
+		elif (argument == TeamResult.LOSE.value):
+			returnType = TeamResult.LOSE
+		elif (argument == TeamResult.CANCEL.value):
+			returnType = TeamResult.CANCEL
+
+		if (returnType is TeamResult.INVALID):
+			raise InvalidTeamResult(argument)
+		else:
+			return returnType
 
 class MatchService(object):
 	queuedPlayers = []
@@ -212,6 +244,66 @@ class MatchService(object):
 		else:
 			print('Something has gone very wrong here')
 
+	async def UpdateRoles(self, ctx, member:discord.Member, oldRole, newRole):
+		if (oldRole is not None):
+			try:
+				await member.remove_roles(oldRole.role, reason='Match service is updating MMR Role for {}'.format(member))
+			except discord.HTTPException:
+				await SendMessage(ctx, description='Failed to remove previous rank. Please try again.', color=discord.Color.red())
+
+		if (newRole is not None):
+			try:
+				await member.add_roles(newRole.role, reason='Match service is updating MMR Role for {}'.format(member))
+			except discord.HTTPException:
+				await SendMessage(ctx, description='Failed to add new rank. Please try again.', color=discord.Color.red())
+
+	async def GetTeamData(self, ctx, team, teamName, result:TeamResult):
+		teamData = []
+		teamField = {}
+		teamField['name'] = '{}: Team {}'.format('Winner' if result == TeamResult.WIN else 'Loser', teamName)
+		teamField['value'] = ''
+		teamField['inline'] = False
+
+		if (len(team) > 0):
+			isFirst = True
+
+			for player in team:
+				oldMMR = 0
+				newMMR = 0
+				oldRole = None
+				newRole = None
+				mmrDelta = None
+
+				if (result == TeamResult.WIN):
+					oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareWinner(player[0])
+				elif (result == TeamResult.LOSE):
+					oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareLoser(player[0])
+				else:
+					oldMMR, newMMR, mmrDelta = self.botSettings.DeclareCancel(player[0])
+
+				delta = int(abs(newMMR - oldMMR)) if mmrDelta is None else mmrDelta
+				teamData.append(MatchHistoryPlayerData(_id=player[0].id, _prevMMR=oldMMR, _newMMR=newMMR, _mmrDelta=delta))
+
+				if (isFirst):
+					isFirst = False
+				else:
+					teamField['value'] += '\n'
+
+				sign = '+' if result == TeamResult.WIN else '-'
+
+				teamField['value'] += '[{}] **MMR:** {} {} {} = {}'.format(self.botSettings.GetUserName(player[0]), oldMMR, sign, delta, newMMR)
+
+				if (oldRole is not None and newRole is not None):
+					teamField['value'] += ' **Rank:** {0.mention} -> {1.mention}'.format(oldRole.role, newRole.role)
+
+				# No point in updating roles if the match was cancelled
+				if (result != TeamResult.CANCEL):
+					await self.UpdateRoles(ctx, player[0], oldRole, newRole)
+		else:
+			teamField['value'] = 'Empty'
+
+		return teamData, teamField
+
 	async def CallMatch(self, ctx, user:discord.Member, id:int, matchResult:MatchResult):
 		print('Match {} has been called as {}'.format(id, matchResult))
 
@@ -221,83 +313,22 @@ class MatchService(object):
 		title = 'Match Results: Game #{}'.format(id)
 		footer = 'This match was called by {}'.format(user)
 
+		winnerTeam, winnerName, loserTeam, loserName = self.matchesStarted[id].GetTeamAndNames(matchResult)
+
 		if (matchResult == MatchResult.CANCELLED):
 			description = 'This match has been cancelled.'
+
+			team1Data, team1Field = await self.GetTeamData(ctx, winnerTeam, winnerName, TeamResult.CANCEL)
+			team2Data, team2Field = await self.GetTeamData(ctx, loserTeam, loserName, TeamResult.CANCEL)
+
+			self.matchesStarted[id].StoreMatchHistoryData(team1Data, team2Data, matchResult)
+			del self.matchesStarted[id]
+
 			await SendChannelMessage(self.botSettings.resultsChannel, title=title, description=description, footer=footer, color=discord.Color.blue())
 			return
 
-		winnerTeam, winnerName, loserTeam, loserName  = self.matchesStarted[id].GetTeamAndNames(matchResult)
-
-		winnerField = {}
-		winnerField['name'] = 'Winner: Team {}'.format(winnerName)
-		winnerField['value'] = ''
-		winnerField['inline'] = False
-
-		async def UpdateRoles(member:discord.Member, oldRole, newRole):
-			if (oldRole is not None):
-				try:
-					await member.remove_roles(oldRole.role, reason='Match service is updating MMR Role for {}'.format(member))
-				except discord.HTTPException:
-					await SendMessage(ctx, description='Failed to remove previous rank. Please try again.', color=discord.Color.red())
-
-			if (newRole is not None):
-				try:
-					await member.add_roles(newRole.role, reason='Match service is updating MMR Role for {}'.format(member))
-				except discord.HTTPException:
-					await SendMessage(ctx, description='Failed to add new rank. Please try again.', color=discord.Color.red())
-
-		winnerTeamData = []
-
-		if (len(winnerTeam) > 0):
-			isFirst = True
-
-			for player in winnerTeam:
-				oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareWinner(player[0])
-				delta = int(abs(newMMR - oldMMR))
-				winnerTeamData.append(MatchHistoryPlayerData(_id=player[0].id, _prevMMR=oldMMR, _newMMR=newMMR, _mmrDelta=delta))
-
-				if (isFirst):
-					isFirst = False
-				else:
-					winnerField['value'] += '\n'
-
-				winnerField['value'] += '[{}] **MMR:** {} + {} = {}'.format(self.botSettings.GetUserName(player[0]), oldMMR, delta, newMMR)
-
-				if (oldRole is not None and newRole is not None):
-					winnerField['value'] += ' **Rank:** {0.mention} -> {1.mention}'.format(oldRole.role, newRole.role)
-
-				await UpdateRoles(player[0], oldRole, newRole)
-		else:
-			winnerField['value'] = 'Empty'
-		
-		loserField = {}
-		loserField['name'] = 'Loser: Team {}'.format(loserName)
-		loserField['value'] = ''
-		loserField['inline'] = False
-
-		loserTeamData = []
-
-		if (len(loserTeam) > 0):
-			isFirst = True
-
-			for player in loserTeam:
-				oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareLoser(player[0])
-				delta = int(abs(newMMR - oldMMR))
-				loserTeamData.append(MatchHistoryPlayerData(_id=player[0].id, _prevMMR=oldMMR, _newMMR=newMMR, _mmrDelta=delta))
-
-				if (isFirst):
-					isFirst = False
-				else:
-					loserField['value'] += '\n'
-
-				loserField['value'] += '[{}] **MMR:** {} - {} = {}'.format(self.botSettings.GetUserName(player[0]), oldMMR, delta, newMMR)
-
-				if (oldRole is not None and newRole is not None):
-					loserField['value'] += ' **Rank:** {0.mention} -> {1.mention}'.format(oldRole.role, newRole.role)
-
-				await UpdateRoles(player[0], oldRole, newRole)
-		else:
-			loserField['value'] = 'Empty'
+		winnerTeamData, winnerField = await self.GetTeamData(ctx, winnerTeam, winnerName, TeamResult.WIN)
+		loserTeamData, loserField = await self.GetTeamData(ctx, loserTeam, loserName, TeamResult.LOSE)
 
 		self.botSettings.DeclareMapPlayed(self.matchesStarted[id].map)
 

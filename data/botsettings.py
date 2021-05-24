@@ -1,6 +1,7 @@
 from data.playerdata import PlayerData
 from data.mmrrole import MMRRole 
 from data.matchhistorydata import MatchHistoryData
+from services.matchservice import TeamResult
 from data.siegemap import SiegeMap
 from enum import Enum
 from discord.ext import commands
@@ -245,6 +246,9 @@ class BotSettings(Document):
 		newPlayer.SetUser(user, name)
 		self.registeredPlayers[user.id] = newPlayer
 
+	def ChangeName(self, user:discord.User, name:str):
+		self.registeredPlayers[user.id].SetName(name)
+
 	def AddMMRRole(self, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
 		newRole = MMRRole()
 		newRole.SetData(role, mmrMin, mmrMax, mmrDelta)
@@ -267,15 +271,24 @@ class BotSettings(Document):
 		del self.maps[name.lower()]
 
 	def SetMMR(self, user:discord.User, mmr:int):
-		previousMMR = self.registeredPlayers[user.id].mmr
-		self.registeredPlayers[user.id].SetMMR(mmr)
+		return self.SetMMRByID(user.id, mmr)
+
+	def SetMMRByID(self, id:int, mmr:int):
+		previousMMR = self.registeredPlayers[id].mmr
+		self.registeredPlayers[id].SetMMR(mmr)
 		return previousMMR
 
 	def GetMMR(self, user:discord.User):
-		return self.registeredPlayers[user.id].mmr
+		return self.GetMMRByID(user.id)
+
+	def GetMMRByID(self, id:int):
+		return self.registeredPlayers[id].mmr
 
 	def GetMMRRole(self, user:discord.User, previousMMR:int = -1):
-		mmr = self.registeredPlayers[user.id].mmr
+		return self.GetMMRRoleByID(user.id, previousMMR)
+
+	def GetMMRRoleByID(self, id:int, previousMMR:int = -1):
+		mmr = self.registeredPlayers[id].mmr
 		previousRole = None
 		newRole = None
 
@@ -324,10 +337,16 @@ class BotSettings(Document):
 		return sorted(self.maps.values(), key=lambda _map : _map.name.lower())
 
 	def GetUserName(self, user:discord.User):
-		return self.registeredPlayers[user.id].name
+		return self.GetUserNameByID(user.id)
+
+	def GetUserNameByID(self, id:int):
+		return self.registeredPlayers[id].name
 
 	def IsUserRegistered(self, user:discord.User):
-		return user.id in self.registeredPlayers
+		return self.IsUserRegisteredByID(user.id)
+
+	def IsUserRegisteredByID(self, id:int):
+		return id in self.registeredPlayers
 
 	def IsUserAdmin(self, user:discord.Member):
 		return self.adminRole in user.roles
@@ -366,19 +385,46 @@ class BotSettings(Document):
 	def DeclareMapPlayed(self, mapName:str):
 		self.maps[mapName.lower()].IncrementTimesPlayed()
 
-	def DeclareWinner(self, user:discord.User):
-		oldRole, newRole= self.GetMMRRole(user)
+	def DeclareWinner(self, user:discord.User, mmrDelta=None):
+		return self.DeclareWinnerByID(user.id, mmrDelta)
 
-		oldMMR = self.GetMMR(user)
+	def DeclareWinnerByID(self, id:int, mmrDelta=None):
+		oldMMR = self.GetMMRByID(id)
 
-		mmrDelta = 0
-		if (newRole is not None):
-			mmrDelta = newRole.mmrDelta
+		if (mmrDelta == None):
+			oldRole, newRole= self.GetMMRRoleByID(id)
+			mmrDelta = 0
+			if (newRole is not None):
+				mmrDelta = newRole.mmrDelta
 
-		self.registeredPlayers[user.id].UpdateData(mmrDelta, True)
+		self.registeredPlayers[id].UpdateData(mmrDelta, True)
 
-		newMMR = self.GetMMR(user)
-		oldRole, newRole = self.GetMMRRole(user, oldMMR)
+		newMMR = self.GetMMRByID(id)
+		oldRole, newRole = self.GetMMRRoleByID(id, oldMMR)
+
+		# Return none if we aren't changing roles
+		if (oldRole is not None and oldRole is newRole):
+			oldRole = None
+			newRole = None
+
+		return oldMMR, newMMR, oldRole, newRole
+
+	def DeclareLoser(self, user:discord.User, mmrDelta=None):
+		return self.DeclareLoserByID(user.id, mmrDelta)
+
+	def DeclareLoserByID(self, id:int, mmrDelta=None):
+		oldMMR = self.GetMMRByID(id)
+
+		if (mmrDelta == None):
+			oldRole, newRole= self.GetMMRRoleByID(id)
+			mmrDelta = 0
+			if (newRole is not None):
+				mmrDelta = newRole.mmrDelta
+
+		self.registeredPlayers[id].UpdateData(mmrDelta, False)
+
+		newMMR = self.GetMMRByID(id)
+		oldRole, newRole = self.GetMMRRoleByID(id, oldMMR)
 
 		# Return none if we aren't changing roles
 		if (oldRole is not None and oldRole is newRole):
@@ -387,20 +433,31 @@ class BotSettings(Document):
 
 		return oldMMR, newMMR, oldRole, newRole
 
+	def DeclareCancel(self, user:discord.User):
+		return self.DeclareCancelByID(user.id)
 
-	def DeclareLoser(self, user:discord.User):
-		oldRole, newRole= self.GetMMRRole(user)
+	def DeclareCancelByID(self, id:int):
+		oldRole, newRole= self.GetMMRRoleByID(id)
 
-		oldMMR = self.GetMMR(user)
+		oldMMR = self.GetMMRByID(id)
+		newMMR = oldMMR
 
 		mmrDelta = 0
 		if (newRole is not None):
 			mmrDelta = newRole.mmrDelta
 
-		self.registeredPlayers[user.id].UpdateData(mmrDelta, False)
+		return oldMMR, newMMR, mmrDelta
 
-		newMMR = self.GetMMR(user)
-		oldRole, newRole = self.GetMMRRole(user, oldMMR)
+	def RedoMatch(self, user:discord.User, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
+		return self.RedoMatchByID(user.id, mmrDelta, prevResult, newResult)
+
+	def RedoMatchByID(self, id:int, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
+		oldMMR = self.GetMMRByID(id)
+
+		self.registeredPlayers[id].RedoData(mmrDelta, prevResult, newResult)
+
+		newMMR = self.GetMMRByID(id)
+		oldRole, newRole = self.GetMMRRoleByID(id, oldMMR)
 
 		# Return none if we aren't changing roles
 		if (oldRole is not None and oldRole is newRole):
@@ -408,4 +465,5 @@ class BotSettings(Document):
 			newRole = None
 
 		return oldMMR, newMMR, oldRole, newRole
+
 

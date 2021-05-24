@@ -1,4 +1,5 @@
 from mongoengine import Document, IntField, StringField
+from services.matchservice import TeamResult
 import discord
 from discord.ext import commands
 
@@ -6,6 +7,11 @@ class UserNotRegistered(commands.BadArgument):
 	def __init__(self, argument):
 		self.argument = argument
 		super().__init__('User {0.mention}" is not registered.'.format(argument))
+
+class UserAlreadyRegistered(commands.BadArgument):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('User {0.mention}" is already registered.'.format(argument))
 
 class PlayerData(Document):
 	# Database fields.  Dont modify or access directly, use the non underscore versions
@@ -32,6 +38,33 @@ class PlayerData(Document):
 		self.name = self._name
 		self.user = await bot.fetch_user(self._user)
 
+	def RedoData(self, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
+		# undo the previous match
+		if (prevResult == TeamResult.WIN):
+			self.wins -= 1
+			self.mmr -= mmrDelta
+			self.matchesPlayed -= 1
+		elif (prevResult == TeamResult.LOSE):
+			self.loses -= 1
+			self.mmr += mmrDelta
+			self.matchesPlayed -= 1
+
+		if (newResult == TeamResult.WIN):
+			self.wins += 1
+			self.mmr += mmrDelta
+			self.matchesPlayed += 1
+		elif (newResult == TeamResult.LOSE):
+			self.loses += 1
+			self.mmr -= mmrDelta
+			self.matchesPlayed += 1
+
+		# Update database
+		self._mmr = self.mmr
+		self._wins = self.wins
+		self._loses = self.loses
+		self._matchesPlayed = self.matchesPlayed
+		self.save()
+
 	def UpdateData(self, mmrDelta:int, isWin:bool):
 		# Update cache
 
@@ -54,6 +87,11 @@ class PlayerData(Document):
 	def SetUser(self, user:discord.User, name:str):
 		self.user = user
 		self._user = user.id
+		self.name = name
+		self._name = name
+		self.save()
+
+	def SetName(self, name:str):
 		self.name = name
 		self._name = name
 		self.save()
