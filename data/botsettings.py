@@ -300,6 +300,23 @@ class BotSettings(Document):
 
 		return True
 
+	def GetSortedRegisteredPlayers(self):
+		return sorted(self.registeredPlayers.values(), key=lambda player : player.mmr, reverse=True)
+
+	def GetTestPlayers(self, num:int):
+		testPlayers = []
+
+		class DummyObject(object) : pass
+
+		for i in range(num):
+			dummy = DummyObject()
+			dummy.name = 'Test Name {}'.format(i)
+			dummy.mmr = random.randint(1, 500)
+			testPlayers.append(dummy)
+		random.shuffle(testPlayers)
+
+		return sorted(testPlayers, key=lambda player : player.mmr, reverse=True)
+
 	def GetSortedMMRRoles(self):
 		return sorted(self.mmrRoles.values(), key=lambda role: role.mmrMin)
 

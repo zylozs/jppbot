@@ -7,6 +7,7 @@ from services.matchservice import MatchService, PlayerAlreadyQueued, PlayerNotQu
 from utils.chatutils import SendMessage
 from discord.ext import commands
 from mongoengine import connect, disconnect
+import math
 
 # Connect to our MongoDB
 connect(db="jppbot")
@@ -432,6 +433,55 @@ async def OnShowMaps(ctx):
 	else:
 		await SendMessage(ctx, fields=fields, color=discord.Color.blue())
 
+@bot.command(name='leaderboard')
+@commands.has_permissions(administrator=True)
+async def OnShowLeaderboards(ctx, page:int=1):
+	print('Showing leaderboards')
+
+	players = botSettings.GetSortedRegisteredPlayers()
+	description = ''
+	numPlayers = len(players)
+	maxPlayersPerPage = 20 # We can only display so many names on a single message
+	numPages = math.ceil(numPlayers / maxPlayersPerPage)
+	title = '{} Leaderboard'.format(botSettings.guild.name)
+	footer = '{} player{}'.format(numPlayers, '' if numPlayers == 1 else 's')
+
+	# sanitize the input to keep the rest simpler
+	page = max(1, min(page, numPages))
+
+	if (numPages > 1):
+		title += ' [{}/{}]'.format(page, numPages)
+	
+	# Determine which subset of players to display
+	startIndex = 0
+	endIndex = maxPlayersPerPage
+	if (page > 1):
+		startIndex = maxPlayersPerPage * (page - 1)
+		endIndex = startIndex + maxPlayersPerPage 
+
+	# Make sure we aren't trying to get more players than are available
+	if (endIndex > numPlayers):
+		endIndex = numPlayers
+
+	playersOnPage = players[startIndex:endIndex]
+	rank = startIndex + 1
+	isFirst = True
+
+	for player in playersOnPage:
+		if (isFirst):
+			isFirst = False
+		else:
+			description += '\n'
+
+		description += '{}. {} - `{}`'.format(rank, player.name, player.mmr)
+		rank += 1
+
+	if (numPlayers == 0):
+		await SendMessage(ctx, title=title, description='There are currently no registered players.', color=discord.Color.blue())
+	else:
+		await SendMessage(ctx, title=title, description=description, footer=footer, color=discord.Color.blue())
+
+
 @OnSetChannel.error
 @OnClearChannel.error
 @OnRegisterPlayer.error
@@ -453,6 +503,7 @@ async def OnShowMaps(ctx):
 @OnRefreshUser.error
 @OnRefreshUsers.error
 @OnForceStartMatch.error
+@OnShowLeaderboards.error
 async def errorHandling(ctx, error):
 	print('Error: {}'.format(error))
 	if (isinstance(error, commands.ChannelNotFound)):
