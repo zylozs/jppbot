@@ -1,3 +1,4 @@
+from mongoengine import Document, EmbeddedDocument, ListField, IntField, StringField, EmbeddedDocumentField
 from enum import Enum
 from discord.ext import commands
 
@@ -29,11 +30,27 @@ class MatchResult(Enum):
 		else:
 			return returnType
 
-class MatchHistoryData(object):
-	def __init__(self):
-		self.team1 = [] # Array<PlayerData>
-		self.team2 = [] # Array<PlayerData>
-		self.result = None # MatchResult
-		self.map = ""
-		self.creationTime = None # datetime.datetime
-		self.matchNumber = 0
+class MatchHistoryPlayerData(EmbeddedDocument):
+	# Database fields.  Dont modify or access directly, use the non underscore versions
+	_id = IntField(default=0)
+	_prevMMR = IntField(default=0)
+	_newMMR = IntField(default=0)
+	_mmrDelta = IntField(default=0)
+
+class MatchHistoryData(Document):
+	# Database fields.  Dont modify or access directly, use the non underscore versions
+	_winningTeam = ListField(EmbeddedDocumentField(MatchHistoryPlayerData), max_length=5)
+	_losingTeam = ListField(EmbeddedDocumentField(MatchHistoryPlayerData), max_length=5)
+	_result = IntField(default=MatchResult.INVALID.value)
+	_map = StringField(default='')
+	_creationTime = StringField(default='')
+	_matchUniqueID = IntField(default=0)
+
+	def StoreData(self, winningTeam, losingTeam, result:MatchResult, selectedMap:str, creationTime:str, id:int):
+		self._winningTeam = winningTeam 
+		self._losingTeam = losingTeam 
+		self._result = result.value
+		self._map = selectedMap
+		self._creationTime = creationTime
+		self._matchUniqueID = id
+		self.save()

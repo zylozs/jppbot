@@ -147,9 +147,6 @@ class BotSettings(Document):
 			_map.Init()
 			self.maps[_map.name.lower()] = _map
 
-		# Historical match data
-		# Type: Array<MatchHistoryData>
-		self.matchHistory = []
 		print('Settings Loaded')
 
 	# channel: Union[None, discord.Guild]

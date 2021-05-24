@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from utils.chatutils import SendMessage, SendChannelMessage
 from datetime import datetime
-from data.matchhistorydata import MatchResult
+from data.matchhistorydata import MatchResult, MatchHistoryData, MatchHistoryPlayerData
 import random
 
 class PlayerAlreadyQueued(commands.BadArgument):
@@ -44,6 +44,10 @@ class Match(object):
 			return (self.team2, team2Name, self.team1, team1Name)
 		else:
 			return None
+	
+	def StoreMatchHistoryData(self, winnerTeamData, loserTeamData, result:MatchResult):
+		data = MatchHistoryData()
+		data.StoreData(winnerTeamData, loserTeamData, result, self.map, self.creationTime, self.uniqueID)
 
 def SumMMR(players):
 	sum = 0
@@ -208,7 +212,7 @@ class MatchService(object):
 		else:
 			print('Something has gone very wrong here')
 
-	async def CallMatch(self, ctx, user:discord.Member, id, matchResult:MatchResult):
+	async def CallMatch(self, ctx, user:discord.Member, id:int, matchResult:MatchResult):
 		print('Match {} has been called as {}'.format(id, matchResult))
 
 		if (id not in self.matchesStarted):
@@ -242,12 +246,15 @@ class MatchService(object):
 				except discord.HTTPException:
 					await SendMessage(ctx, description='Failed to add new rank. Please try again.', color=discord.Color.red())
 
+		winnerTeamData = []
+
 		if (len(winnerTeam) > 0):
 			isFirst = True
 
 			for player in winnerTeam:
 				oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareWinner(player[0])
 				delta = int(abs(newMMR - oldMMR))
+				winnerTeamData.append(MatchHistoryPlayerData(_id=player[0].id, _prevMMR=oldMMR, _newMMR=newMMR, _mmrDelta=delta))
 
 				if (isFirst):
 					isFirst = False
@@ -268,12 +275,15 @@ class MatchService(object):
 		loserField['value'] = ''
 		loserField['inline'] = False
 
+		loserTeamData = []
+
 		if (len(loserTeam) > 0):
 			isFirst = True
 
 			for player in loserTeam:
 				oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareLoser(player[0])
 				delta = int(abs(newMMR - oldMMR))
+				loserTeamData.append(MatchHistoryPlayerData(_id=player[0].id, _prevMMR=oldMMR, _newMMR=newMMR, _mmrDelta=delta))
 
 				if (isFirst):
 					isFirst = False
@@ -290,6 +300,9 @@ class MatchService(object):
 			loserField['value'] = 'Empty'
 
 		self.botSettings.DeclareMapPlayed(self.matchesStarted[id].map)
+
+		self.matchesStarted[id].StoreMatchHistoryData(winnerTeamData, loserTeamData, matchResult)
+		del self.matchesStarted[id]
 
 		await SendChannelMessage(self.botSettings.resultsChannel, title=title, fields=[winnerField, loserField], footer=footer, color=discord.Color.blue())
 
