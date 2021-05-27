@@ -1,0 +1,75 @@
+from mongoengine import Document, EmbeddedDocument, ListField, IntField, StringField, EmbeddedDocumentField
+from enum import Enum
+from discord.ext import commands
+
+class InvalidMatchResult(commands.BadArgument):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('Match Result "{}" is not valid.'.format(argument))
+
+class MatchIDNotFound(commands.BadArgument):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('Match with id `{}` was not found. The match history either doesn\'t exist for this match or this is not a valid match id.'.format(argument))
+
+class MatchResultIdentical(commands.BadArgument):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('`{}` is identical to the current match result'.format(argument))
+
+
+class MatchResult(Enum):
+	TEAM1VICTORY = 0
+	TEAM2VICTORY = 1
+	CANCELLED = 2
+	INVALID = 3
+
+	@classmethod
+	async def convert(cls, ctx, argument):
+		returnType = MatchResult.INVALID
+
+		if (isinstance(argument, int)):
+			if (argument == MatchResult.TEAM1VICTORY.value):
+				returnType = MatchResult.TEAM1VICTORY
+			elif (argument == MatchResult.TEAM2VICTORY.value):
+				returnType = MatchResult.TEAM2VICTORY
+			elif (argument == MatchResult.CANCELLED.value):
+				returnType = MatchResult.CANCELLED
+		elif (isinstance(argument, str)):
+			tempArg = argument.lower()
+			if (tempArg.__contains__('blue') or tempArg.__contains__('team1') or tempArg.__contains__('t1')):
+				returnType = MatchResult.TEAM1VICTORY
+			elif (tempArg.__contains__('orange') or tempArg.__contains__('team2') or tempArg.__contains__('t2')):
+				returnType = MatchResult.TEAM2VICTORY
+			elif (tempArg.__contains__('cancel')):
+				returnType = MatchResult.CANCELLED
+
+		if (returnType is MatchResult.INVALID):
+			raise InvalidMatchResult(argument)
+		else:
+			return returnType
+
+class MatchHistoryPlayerData(EmbeddedDocument):
+	# Database fields.  Dont modify or access directly, use the non underscore versions
+	_id = IntField(default=0)
+	_prevMMR = IntField(default=0)
+	_newMMR = IntField(default=0)
+	_mmrDelta = IntField(default=0)
+
+class MatchHistoryData(Document):
+	# Database fields.  Dont modify or access directly, use the non underscore versions
+	_team1 = ListField(EmbeddedDocumentField(MatchHistoryPlayerData), max_length=5)
+	_team2 = ListField(EmbeddedDocumentField(MatchHistoryPlayerData), max_length=5)
+	_result = IntField(default=MatchResult.INVALID.value)
+	_map = StringField(default='')
+	_creationTime = StringField(default='')
+	_matchUniqueID = IntField(default=0)
+
+	def StoreData(self, team1, team2, result:MatchResult, selectedMap:str, creationTime:str, id:int):
+		self._team1 = team1 
+		self._team2 = team2 
+		self._result = result.value
+		self._map = selectedMap
+		self._creationTime = creationTime
+		self._matchUniqueID = id
+		self.save()
