@@ -340,6 +340,9 @@ class BotSettings(Document):
 	def GetSortedRegisteredPlayers(self):
 		return sorted(self.registeredPlayers.values(), key=lambda player : player.mmr, reverse=True)
 
+	def GetRegisteredPlayerByID(self, id:int):
+		return self.registeredPlayers[id]
+
 	def GetTestPlayers(self, num:int):
 		testPlayers = []
 

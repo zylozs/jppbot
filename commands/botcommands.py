@@ -125,6 +125,8 @@ async def OnSetName(ctx, name:str):
 
 	botSettings.ChangeName(ctx.author, name)
 
+	await SendMessage(ctx, description='Your name has been changed to `{}`'.format(name), color=discord.Color.blue())
+
 @bot.command(name='join', aliases=['j'])
 @IsValidChannel(ChannelType.LOBBY)
 async def OnJoinQueue(ctx):
@@ -635,6 +637,24 @@ async def OnRecallMatch(ctx, matchID:int, newResult:MatchResult):
 
 	await SendChannelMessage(botSettings.adminChannel, description='The ranks of all players in match #{} have been updated.'.format(match._matchUniqueID), color=discord.Color.blue())
 
+@bot.command(name='stats')
+async def OnShowStats(ctx):
+	print('Showing stats for {}'.format(ctx.author))
+
+	if (not botSettings.IsUserRegistered(ctx.author)):
+		raise UserNotRegistered(ctx.author)
+
+	player = botSettings.GetRegisteredPlayerByID(ctx.author.id)
+	prevRole, currentRole = botSettings.GetMMRRole(ctx.author)
+
+	winLossDelta = abs(player.wins - player.loses)
+	delta = '{}{}'.format('+' if winLossDelta >= 0 else '-', winLossDelta)
+
+	title = 'Stats for {}'.format(player.name)
+	description = '**Rank:** {0.mention}\n**MMR:** {1}\n**Matches Played:** {2}\n**Win/Loss:** {3}/{4} ({5})'.format(currentRole.role, player.mmr, player.matchesPlayed, player.wins, player.loses, delta)
+
+	await SendMessage(ctx, title=title, description=description, color=discord.Color.blue())
+
 @OnSetChannel.error
 @OnClearChannel.error
 @OnRegisterPlayer.error
@@ -657,6 +677,7 @@ async def OnRecallMatch(ctx, matchID:int, newResult:MatchResult):
 @OnForceStartMatch.error
 @OnShowLeaderboards.error
 @OnRecallMatch.error
+@OnShowStats.error
 async def errorHandling(ctx, error):
 	print('Error: {}'.format(error))
 	if (isinstance(error, commands.ChannelNotFound)):
