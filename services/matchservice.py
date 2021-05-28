@@ -145,8 +145,16 @@ class MatchService(object):
 			await SendMessage(ctx, title=title, description=description, color=discord.Color.blue())
 
 	async def StartMatch(self, ctx):
+		# Check for PMCC override
+		enablePMCCOverride = False
+
+		for player in self.queuedPlayers:
+			if (player[0].id == int('90342358620573696')):
+				enablePMCCOverride = True
+				break
+
 		id = self.botSettings.GetNextUniqueMatchID()
-		selectedMap = self.botSettings.GetRandomMap().name
+		selectedMap = self.botSettings.GetRandomMap(enablePMCCOverride).name
 		creationTime = datetime.strftime(datetime.now(), '%d %b %Y %H:%M')
 
 		title = 'Game #{} Started'.format(id)

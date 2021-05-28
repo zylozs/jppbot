@@ -647,11 +647,60 @@ async def OnShowStats(ctx):
 	player = botSettings.GetRegisteredPlayerByID(ctx.author.id)
 	prevRole, currentRole = botSettings.GetMMRRole(ctx.author)
 
-	winLossDelta = abs(player.wins - player.loses)
-	delta = '{}{}'.format('+' if winLossDelta >= 0 else '-', winLossDelta)
+	results = {}
+
+	def AddWin(map:str):
+		if (map not in results):
+			results[map] = [1, 0, map]
+		else:
+			results[map][0] += 1
+
+	def AddLoss(map:str):
+		if (map not in results):
+			results[map] = [0, 1, map]
+		else:
+			results[map][1] += 1
+
+	team1Matches = MatchHistoryData.objects(_team1__match={'_id':ctx.author.id}) 
+	team2Matches = MatchHistoryData.objects(_team2__match={'_id':ctx.author.id})
+
+	def CheckResults(matches, winResult, loseResult):
+		for data in matches:
+			if (data._result == MatchResult.CANCELLED.value):
+				continue
+
+			if (data._result == winResult):
+				AddWin(data._map)
+			elif (data._result == loseResult):
+				AddLoss(data._map)
+
+	CheckResults(team1Matches, MatchResult.TEAM1VICTORY.value, MatchResult.TEAM2VICTORY.value)
+	CheckResults(team2Matches, MatchResult.TEAM2VICTORY.value, MatchResult.TEAM1VICTORY.value)
+	
+	bestMaps = sorted(results.values(), key=lambda map : map[0], reverse=True)
+	worstMaps = sorted(results.values(), key=lambda map : map[1], reverse=True)
+
+	bestMap = bestMaps[0] if len(bestMaps) > 0 else None
+	worstMap = worstMaps[0] if len(worstMaps) > 0 else None
+
+	winLossDelta = player.wins - player.loses
+	wlDelta = '{}{}'.format('+' if winLossDelta >= 0 else '-', abs(winLossDelta))
 
 	title = 'Stats for {}'.format(player.name)
-	description = '**Rank:** {0.mention}\n**MMR:** {1}\n**Matches Played:** {2}\n**Win/Loss:** {3}/{4} ({5})'.format(currentRole.role, player.mmr, player.matchesPlayed, player.wins, player.loses, delta)
+	description = '**Rank:** {0.mention}\n'.format(currentRole.role)
+	description += '**MMR:** {0}\n'.format(player.mmr)
+	description += '**Matches Played:** {0}\n'.format(player.matchesPlayed)
+	description += '**Win/Loss:** {0}/{1} ({2})\n'.format(player.wins, player.loses, wlDelta)
+
+	if (bestMap is not None):
+		bestMapDelta = bestMap[0] - bestMap[1]
+		bmDelta = '{}{}'.format('+' if bestMapDelta >= 0 else '-', abs(bestMapDelta))
+		description += '**Best Map:** {} ({})\n'.format(bestMap[2], bmDelta)
+
+	if (worstMap is not None):
+		worstMapDelta = worstMap[0] - worstMap[1]
+		wmDelta = '{}{}'.format('+' if worstMapDelta >= 0 else '-', abs(worstMapDelta))
+		description += '**Worst Map:** {} ({})'.format(worstMap[2], wmDelta)
 
 	await SendMessage(ctx, title=title, description=description, color=discord.Color.blue())
 

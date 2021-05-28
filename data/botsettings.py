@@ -8,6 +8,7 @@ from discord.ext import commands
 from mongoengine import Document, IntField 
 import discord
 import random
+import math
 
 class ChannelTypeInvalid(commands.BadArgument):
 	def __init__(self, argument):
@@ -406,8 +407,20 @@ class BotSettings(Document):
 		self.save()
 		return id
 
-	def GetRandomMap(self):
-		return random.choice(self.GetSortedMaps())
+	def GetRandomMap(self, enablePMCCOverride = False):
+		# sort by times played. Less played maps towards the beginning and more played maps towards the end
+		sortedMaps = sorted(self.maps.values(), key=lambda _map : _map.timesPlayed)
+
+		# random amongst the least played maps (numMaps / 3)
+		numMapsToKeep = int(math.ceil(len(sortedMaps) / 3))
+
+		leastPlayedMaps = sortedMaps[:numMapsToKeep]
+
+		if ('villa' in self.maps and enablePMCCOverride):
+			if (self.maps['villa'] not in leastPlayedMaps):
+				leastPlayedMaps.append(self.maps['villa'])
+
+		return random.choice(leastPlayedMaps)
 
 	def DeclareMapPlayed(self, mapName:str):
 		self.maps[mapName.lower()].IncrementTimesPlayed()
