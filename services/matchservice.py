@@ -223,7 +223,7 @@ class MatchService(object):
 		reactions = ['🟦', '🟧', '❎']
 
 		await SendChannelMessage(self.botSettings.lobbyChannel, title=title, description=description, fields=[team1Field, team2Field], color=discord.Color.blue())
-		message = await SendChannelMessage(self.botSettings.adminChannel, title=title, description=description, fields=[team1Field, team2Field, adminField], reactions=reactions)
+		message = await SendChannelMessage(self.botSettings.reportChannel, title=title, description=description, fields=[team1Field, team2Field, adminField], reactions=reactions)
 
 		def IsValidAdminAndEmoji(reaction, user):
 			return self.botSettings.IsUserAdmin(user) and str(reaction.emoji) in reactions

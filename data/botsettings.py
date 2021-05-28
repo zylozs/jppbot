@@ -22,6 +22,11 @@ class AdminRoleUnitialized(commands.CommandError):
 	def __init__(self):
 		super().__init__('The admin role has not been setup.')
 
+class UserNotAdmin(commands.CommandError):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('The user {0.mention} is not an admin'.format(argument))
+
 class GuildTextChannelMismatch(commands.BadArgument):
 	def __init__(self, argument):
 		self.argument = argument
@@ -47,6 +52,7 @@ class ChannelType(Enum):
 	RESULTS = "result"
 	ADMIN = "admin"
 	REGISTER = "register"
+	REPORT = "report"
 	INVALID = "invalid"
 
 	@classmethod
@@ -62,6 +68,8 @@ class ChannelType(Enum):
 			returnType = ChannelType.ADMIN
 		elif (tempArg.__contains__(ChannelType.REGISTER.value)):
 			returnType = ChannelType.REGISTER
+		elif (tempArg.__contains__(ChannelType.REPORT.value)):
+			returnType = ChannelType.REPORT
 
 		if (returnType is ChannelType.INVALID):
 			raise ChannelTypeInvalid(argument)
@@ -76,6 +84,7 @@ class BotSettings(Document):
 	_resultsChannel = IntField(default=-1)
 	_adminChannel = IntField(default=-1) 
 	_registerChannel = IntField(default=-1)
+	_reportChannel = IntField(default=-1)
 	_registeredRole = IntField(default=-1)
 	_adminRole = IntField(default=-1)
 	_nextUniqueMatchID = IntField(default=0)
@@ -86,6 +95,7 @@ class BotSettings(Document):
 	resultsChannel = None # discord.TextChannel
 	adminChannel = None # discord.TextChannel
 	registerChannel = None # discord.TextChannel
+	reportChannel = None # discord.TextChannel
 	registeredRole = None # discord.Role
 	adminRole = None # discord.Role
 
@@ -121,6 +131,7 @@ class BotSettings(Document):
 		self.resultsChannel = self._GetChannel(self._resultsChannel)
 		self.adminChannel = self._GetChannel(self._adminChannel)
 		self.registerChannel = self._GetChannel(self._registerChannel)
+		self.reportChannel = self._GetChannel(self._reportChannel)
 
 		# Player data
 		# Type: Dictionary<key=discord.User, value=PlayerData>
@@ -211,6 +222,19 @@ class BotSettings(Document):
 		elif (isinstance(channel, discord.TextChannel)):
 			self.registerChannel = channel
 			self._registerChannel = channel.id
+			self.save()
+		else:
+			raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')
+
+	# channel: Union[None, discord.TextChannel]
+	def SetReportChannel(self, channel):
+		if (channel is None):
+			self.reportChannel = None
+			self._reportChannel = -1
+			self.save()
+		elif (isinstance(channel, discord.TextChannel)):
+			self.reportChannel = channel
+			self._reportChannel = channel.id
 			self.save()
 		else:
 			raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')

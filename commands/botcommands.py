@@ -1,5 +1,5 @@
 import discord
-from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel
+from data.botsettings import BotSettings, ChannelType, ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, UserNotAdmin
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap 
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
@@ -48,8 +48,19 @@ matchService.Init(bot, botSettings)
 
 def IsValidChannel(channelType:ChannelType, includeAdmin=True):
 	async def predicate(ctx):
+		# If we haven't setup an admin channel, allow the admin commands anywhere
+		if (channelType == ChannelType.ADMIN and botSettings.adminChannel is None):
+			return True
+
 		if (not botSettings.IsValidChannel(ctx.channel, channelType, includeAdmin=includeAdmin)):
 			raise InvalidCommandChannel(ctx.channel, channelType)
+		return True
+	return commands.check(predicate)
+
+def IsAdmin():
+	async def predicate(ctx):
+		if (not botSettings.IsUserAdmin(ctx.author)):
+			raise UserNotAdmin(ctx.author)
 		return True
 	return commands.check(predicate)
 
@@ -71,7 +82,8 @@ async def on_ready():
 	await botSettings.InitSettings(bot)
 
 @bot.command(name='quit')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnQuit(ctx):
 	disconnect() # disconect our MongoDB instance
 	await bot.close() # close our bot instance
@@ -113,35 +125,6 @@ async def OnSetName(ctx, name:str):
 
 	botSettings.ChangeName(ctx.author, name)
 
-@bot.command(name='registeradmin')
-@commands.has_permissions(administrator=True)
-@IsValidChannel(ChannelType.ADMIN)
-async def OnRegisterAdmin(ctx, member:discord.Member):
-	print('User {0.author} is registering a new admin {1}'.format(ctx, member))
-
-	if (botSettings.adminRole is None):
-		raise AdminRoleUnitialized()
-
-	try:
-		await member.add_roles(botSettings.adminRole, reason='User {0.author} is registering a new admin {1}'.format(ctx, member))
-		await SendMessage(ctx, description='You have registered {0.mention} as an admin!'.format(member), color=discord.Color.blue())
-	except discord.HTTPException:
-		await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
-
-@bot.command(name='removeadmin')
-@commands.has_permissions(administrator=True)
-async def OnRemoveAdmin(ctx, member:discord.Member):
-	print('User {0.author} is removing admin permissions from {1}'.format(ctx, member))
-
-	if (botSettings.adminRole is None):
-		raise AdminRoleUnitialized()
-
-	try:
-		await member.remove_roles(botSettings.adminRole, reason='User {0.author} is removing admin permissions from {1}'.format(ctx, member))
-		await SendMessage(ctx, description='You have removed admin permissions from {0.mention}.'.format(member), color=discord.Color.blue())
-	except discord.HTTPException:
-		await SendMessage(ctx, description='Removal failed. Please try again.', color=discord.Color.red())
-
 @bot.command(name='join', aliases=['j'])
 @IsValidChannel(ChannelType.LOBBY)
 async def OnJoinQueue(ctx):
@@ -171,14 +154,15 @@ async def OnShowQueue(ctx):
 
 @bot.command(name='forcestartmatch')
 @IsValidChannel(ChannelType.LOBBY)
-@commands.has_permissions(administrator=True)
+@IsAdmin()
 async def OnForceStartMatch(ctx):
 	print('{} is force starting the match'.format(ctx.author))
 
 	await matchService.StartMatch(ctx)
 
 @bot.command(name='clearchannel')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnClearChannel(ctx, channel:discord.TextChannel, channelType:ChannelType):
 	print('Channel: {} type: {}'.format(channel, channelType))
 
@@ -190,11 +174,14 @@ async def OnClearChannel(ctx, channel:discord.TextChannel, channelType:ChannelTy
 		botSettings.SetAdminChannel(None)
 	elif (channelType is ChannelType.RESULTS):
 		botSettings.SetResultsChannel(None)
+	elif (channelType is ChannelType.REPORT):
+		botSettings.SetReportChannel(None)
 
 	await SendMessage(ctx, description='{0.mention} has been cleared as the {1.value} channel'.format(channel, channelType), color=discord.Color.blue())
 
 @bot.command(name='setchannel')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnSetChannel(ctx, channel:discord.TextChannel, channelType:ChannelType):
 	print('Setting Channel: {} type: {}'.format(channel, channelType))
 
@@ -212,11 +199,14 @@ async def OnSetChannel(ctx, channel:discord.TextChannel, channelType:ChannelType
 		botSettings.SetAdminChannel(channel)
 	elif (channelType is ChannelType.RESULTS):
 		botSettings.SetResultsChannel(channel)
+	elif (channelType is ChannelType.REPORT):
+		botSettings.SetReportChannel(channel)
 
 	await SendMessage(ctx, description='{0.mention} has been set as the {1.value} channel'.format(channel, channelType), color=discord.Color.blue())
 
 @bot.command(name='setregisteredrole')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnSetRegisteredRole(ctx, role:discord.Role):
 	print('Setting Registered Role: {}'.format(role))
 
@@ -236,6 +226,7 @@ async def OnSetRegisteredRole(ctx, role:discord.Role):
 
 @bot.command(name='setadminrole')
 @commands.has_permissions(administrator=True)
+@IsValidChannel(ChannelType.ADMIN)
 async def OnSetAdminRole(ctx, role:discord.Role):
 	print('Setting Admin Role: {}'.format(role))
 
@@ -254,7 +245,8 @@ async def OnSetAdminRole(ctx, role:discord.Role):
 	await SendMessage(ctx, description='The admin role has been updated.', color=discord.Color.blue())
 
 @bot.command(name='addrank')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnAddRank(ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
 	print('Adding new rank: {} min: {} max: {} delta: {}'.format(role, mmrMin, mmrMax, mmrDelta))
 
@@ -274,7 +266,8 @@ async def OnAddRank(ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int
 	await SendMessage(ctx, title='New Rank Added', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
 
 @bot.command(name='updaterank')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnUpdateRank(ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
 	print('Updating existing rank: {} min: {} max: {} delta: {}'.format(role, mmrMin, mmrMax, mmrDelta))
 
@@ -294,7 +287,8 @@ async def OnUpdateRank(ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:
 	await SendMessage(ctx, title='Rank Updated', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
 
 @bot.command(name='removerank')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnRemoveRank(ctx, role:discord.Role):
 	print('Removing rank: {}'.format(role))
 
@@ -334,7 +328,8 @@ async def OnShowRanks(ctx):
 		await SendMessage(ctx, fields=fields, color=discord.Color.blue())
 
 @bot.command(name='setmmr')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnSetMMR(ctx, member:discord.Member, mmr:int):
 	print('Setting MMR on {0} to {1}'.format(member, mmr))
 
@@ -364,7 +359,8 @@ async def OnSetMMR(ctx, member:discord.Member, mmr:int):
 	await SendMessage(ctx, fields=[field], color=discord.Color.blue())
 
 @bot.command(name='refreshuser')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnRefreshUser(ctx, member:discord.Member):
 	print('Refreshing roles for user {}'.format(member))
 
@@ -388,7 +384,8 @@ async def OnRefreshUser(ctx, member:discord.Member):
 	await SendMessage(ctx, description='Ranks have been updated on {0.mention}'.format(member), color=discord.Color.blue())
 
 @bot.command(name='refreshusers')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnRefreshUsers(ctx):
 	print('Refreshing roles on all users')
 
@@ -420,7 +417,8 @@ async def OnRefreshUsers(ctx):
 	await SendMessage(ctx, description='Ranks have been updated on all registered players.', color=discord.Color.blue())
 
 @bot.command(name='addmap')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnAddMap(ctx, name:str):
 	print('Adding map: {}'.format(name))
 
@@ -431,7 +429,8 @@ async def OnAddMap(ctx, name:str):
 	await SendMessage(ctx, description='`{}` has been added as a map.'.format(name), color=discord.Color.blue())
 
 @bot.command(name='removemap')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnRemoveMap(ctx, name:str):
 	print('Removing map: {}'.format(name))
 
@@ -452,16 +451,20 @@ async def OnShowMaps(ctx):
 		field = {}
 		field['name'] = '{}'.format(map.name)
 		field['value'] = 'Times Played: {}'.format(map.timesPlayed)
-		field['inline'] = False
+		field['inline'] = True 
 		fields.append(field)
+
+	numMaps = len(maps)
+	footer = '{} map{}'.format(numMaps, '' if numMaps == 1 else 's')
 
 	if (len(fields) == 0):
 		await SendMessage(ctx, description='There are currently no maps.', color=discord.Color.blue())
 	else:
-		await SendMessage(ctx, fields=fields, color=discord.Color.blue())
+		await SendMessage(ctx, fields=fields, footer=footer, color=discord.Color.blue())
 
 @bot.command(name='leaderboard')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
 async def OnShowLeaderboards(ctx, page:int=1):
 	print('Showing leaderboards')
 
@@ -509,7 +512,8 @@ async def OnShowLeaderboards(ctx, page:int=1):
 		await SendMessage(ctx, title=title, description=description, footer=footer, color=discord.Color.blue())
 
 @bot.command('recallmatch')
-@commands.has_permissions(administrator=True)
+@IsAdmin()
+@IsValidChannel(ChannelType.REPORT)
 async def OnRecallMatch(ctx, matchID:int, newResult:MatchResult):
 	print('User {} is recalling the match {} with a new result: {}'.format(ctx.author, matchID, newResult))
 
@@ -636,8 +640,6 @@ async def OnRecallMatch(ctx, matchID:int, newResult:MatchResult):
 @OnRegisterPlayer.error
 @OnSetName.error
 @OnSetRegisteredRole.error
-@OnRegisterAdmin.error
-@OnRemoveAdmin.error
 @OnSetAdminRole.error
 @OnJoinQueue.error
 @OnLeaveQueue.error
@@ -728,6 +730,9 @@ async def errorHandling(ctx, error):
 
 	elif (isinstance(error, MatchResultIdentical)):
 		await SendMessage(ctx, description='The new match result is the same as the original. Nothing will happen.', color=discord.Color.red())
+
+	elif (isinstance(error, UserNotAdmin)):
+		await SendMessage(ctx, description='You do not have permission to run this command.', color=discord.Color.red())
 
 	elif (isinstance(error, commands.errors.MissingRequiredArgument)):
 		await SendMessage(ctx, description='Invalid usage: `{0.name}` is a required argument'.format(error.param), color=discord.Color.red())
