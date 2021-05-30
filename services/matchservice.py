@@ -21,6 +21,17 @@ class InvalidMatchID(commands.BadArgument):
 		self.argument = argument
 		super().__init__('{} is not a valid match id.'.format(argument))
 
+class QueuedPlayer(object):
+	user = None
+	mmr = 0
+
+	def __init__(self, user, mmr):
+		self.user = user
+		self.mmr = mmr
+
+	def __eq__(self, other):
+		return self.user is other
+
 class Match(object):
 	team1 = []
 	team2 = []
@@ -53,12 +64,6 @@ class Match(object):
 			data.StoreData(winnerTeamData, loserTeamData, result, self.map, self.creationTime, self.uniqueID)
 		elif (result == MatchResult.TEAM2VICTORY):
 			data.StoreData(loserTeamData, winnerTeamData, result, self.map, self.creationTime, self.uniqueID)
-
-def SumMMR(players):
-	sum = 0
-	for player in players:
-		sum += player[1]
-	return sum
 
 class InvalidTeamResult(commands.BadArgument):
 	def __init__(self, argument):
@@ -97,17 +102,31 @@ class MatchService(object):
 		self.bot = bot
 		self.botSettings = botSettings
 
+	def GetNotInQueue(self, members):
+		missing = []
+
+		for member in members:
+			found = False
+			for player in self.queuedPlayers:
+				if player == member:
+					found = True
+
+			if (not found):
+				missing.append(member)
+
+		return missing
+
 	async def JoinQueue(self, ctx, user:discord.Member):
 		mmr = self.botSettings.GetMMR(user)
 
-		self.queuedPlayers.append((user, mmr))
+		self.queuedPlayers.append(QueuedPlayer(user, mmr))
 
 		numPlayers = len(self.queuedPlayers)
 
 		if (numPlayers == 10):
 			description = '{0.mention} [{1}] joined the queue.\nThe queue is now full, starting a match...'.format(user, mmr)
 		else:
-			description = '**[{0}/10]** {1.mention} [{2}] joined the queue.'.format(len(self.queuedPlayers), user, mmr)
+			description = '**[{0}/10]** {1.mention} [{2}] joined the queue.'.format(numPlayers, user, mmr)
 		
 		await SendMessage(ctx, description=description, color=discord.Color.blue())
 
@@ -116,9 +135,12 @@ class MatchService(object):
 		
 
 	async def LeaveQueue(self, ctx, user:discord.Member):
-		mmr = self.botSettings.GetMMR(user)
-
-		self.queuedPlayers.remove((user, mmr))
+		mmr = 0
+		for i in range(len(self.queuedPlayers)):
+			if (self.queuedPlayers[i] == user):
+				mmr = self.queuedPlayers[i].mmr
+				self.queuedPlayers.pop(i)
+				break
 
 		numPlayers = len(self.queuedPlayers)
 
@@ -138,18 +160,46 @@ class MatchService(object):
 		else:
 			title = 'Lobby [{0}/10]'.format(numPlayers)
 			description = ''
+			isFirst = True
 
 			for player in self.queuedPlayers:
-				description += '[{1}] {0.mention}'.format(player[0], player[1])
+				if (isFirst):
+					isFirst = False
+				else:
+					description += '\n'
+
+				description += '[{1}] {0.mention}'.format(player.user, player.mmr)
 
 			await SendMessage(ctx, title=title, description=description, color=discord.Color.blue())
+
+	async def ClearQueue(self, ctx):
+		self.queuedPlayers.clear()
+
+		await SendMessage(ctx, description='Queue Cleared.', color=discord.Color.blue())
+
+	async def KickFromQueue(self, ctx, user:discord.Member):
+		mmr = 0
+		for i in range(len(self.queuedPlayers)):
+			if (self.queuedPlayers[i] == user):
+				mmr = self.queuedPlayers[i].mmr
+				self.queuedPlayers.pop(i)
+				break
+
+		numPlayers = len(self.queuedPlayers)
+
+		if (numPlayers == 0):
+			description = '{0.mention} [{1}] was removed from the queue by {2.mention}.\nThe queue is now empty.'.format(user, mmr, ctx.author)
+		else:
+			description = '**[{0}/10]** {1.mention} [{2}] was removed from the queue by {3.mention}.'.format(numPlayers, user, mmr, ctx.author)
+
+		await SendMessage(ctx, description=description, color=discord.Color.blue())
 
 	async def StartMatch(self, ctx):
 		# Check for PMCC override
 		enablePMCCOverride = False
 
 		for player in self.queuedPlayers:
-			if (player[0].id == int('90342358620573696')):
+			if (player.user.id == int('90342358620573696')):
 				enablePMCCOverride = True
 				break
 
@@ -178,7 +228,13 @@ class MatchService(object):
 		team1 = []
 		team2 = []
 
-		for i in range(5):
+		def SumMMR(players):
+			sum = 0
+			for player in players:
+				sum += player.mmr
+			return sum
+
+		for i in range(10):
 			tempList = self.queuedPlayers.copy()
 			random.shuffle(tempList) 
 
@@ -202,7 +258,7 @@ class MatchService(object):
 				else:
 					team1Field['value'] += '\n'
 
-				team1Field['value'] += '{0.mention}'.format(player[0])
+				team1Field['value'] += '{0.mention}'.format(player.user)
 		else:
 			team1Field['value'] = 'Empty'
 
@@ -214,7 +270,7 @@ class MatchService(object):
 				else:
 					team2Field['value'] += '\n'
 
-				team2Field['value'] += '{0.mention}'.format(player[0])
+				team2Field['value'] += '{0.mention}'.format(player.user)
 		else:
 			team2Field['value'] = 'Empty'
 
@@ -283,14 +339,14 @@ class MatchService(object):
 				mmrDelta = None
 
 				if (result == TeamResult.WIN):
-					oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareWinner(player[0])
+					oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareWinner(player.user)
 				elif (result == TeamResult.LOSE):
-					oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareLoser(player[0])
+					oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareLoser(player.user)
 				else:
-					oldMMR, newMMR, mmrDelta = self.botSettings.DeclareCancel(player[0])
+					oldMMR, newMMR, mmrDelta = self.botSettings.DeclareCancel(player.user)
 
 				delta = int(abs(newMMR - oldMMR)) if mmrDelta is None else mmrDelta
-				teamData.append(MatchHistoryPlayerData(_id=player[0].id, _prevMMR=oldMMR, _newMMR=newMMR, _mmrDelta=delta))
+				teamData.append(MatchHistoryPlayerData(_id=player.user.id, _prevMMR=oldMMR, _newMMR=newMMR, _mmrDelta=delta))
 
 				if (isFirst):
 					isFirst = False
@@ -299,14 +355,14 @@ class MatchService(object):
 
 				sign = '+' if result == TeamResult.WIN else '-'
 
-				teamField['value'] += '[{}] **MMR:** {} {} {} = {}'.format(self.botSettings.GetUserName(player[0]), oldMMR, sign, delta, newMMR)
+				teamField['value'] += '[{}] **MMR:** {} {} {} = {}'.format(self.botSettings.GetUserName(player.user), oldMMR, sign, delta, newMMR)
 
 				if (oldRole is not None and newRole is not None):
 					teamField['value'] += ' **Rank:** {0.mention} -> {1.mention}'.format(oldRole.role, newRole.role)
 
 				# No point in updating roles if the match was cancelled
 				if (result != TeamResult.CANCEL):
-					await self.UpdateRoles(ctx, player[0], oldRole, newRole)
+					await self.UpdateRoles(ctx, player.user, oldRole, newRole)
 		else:
 			teamField['value'] = 'Empty'
 
@@ -346,4 +402,8 @@ class MatchService(object):
 		await SendChannelMessage(self.botSettings.resultsChannel, title=title, fields=[winnerField, loserField], footer=footer, color=discord.Color.blue())
 
 	def IsPlayerQueued(self, user:discord.User):
-		return user in self.queuedPlayers
+		for player in self.queuedPlayers:
+			if player == user:
+				return True
+
+		return False

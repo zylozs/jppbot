@@ -41,7 +41,10 @@ if (len(BotSettings.objects) > 0):
 else:
 	botSettings = BotSettings()
 
-bot = commands.Bot(command_prefix='!', description='A bot to host the weekly JPP sessions.')
+intents = discord.Intents.default()
+intents.members = True
+intents.voice_states = True
+bot = commands.Bot(command_prefix='!', description='A bot to host the weekly JPP sessions.', intents=intents)
 
 matchService = MatchService()
 matchService.Init(bot, botSettings)
@@ -154,6 +157,55 @@ async def OnShowQueue(ctx):
 
 	await matchService.ShowQueue(ctx)
 
+@bot.command(name='clearqueue')
+@IsValidChannel(ChannelType.LOBBY)
+@IsAdmin()
+async def OnClearQueue(ctx):
+	print('Clearing queue')
+
+	await matchService.ClearQueue(ctx)
+
+@bot.command(name='kick')
+@IsValidChannel(ChannelType.LOBBY)
+@IsAdmin()
+async def OnKickPlayerFromQueue(ctx, member:discord.Member):
+	print('{} is kicking {} from the queue'.format(ctx.author, member))
+
+	await matchService.KickFromQueue(ctx, member)
+
+@bot.command(name='missing')
+@IsValidChannel(ChannelType.LOBBY)
+async def OnShowMissingPlayers(ctx):
+	print('Showing missing players')
+
+	if (botSettings.guild is None):
+		raise InvalidGuild()
+
+	missingMembers = []
+	for channel in botSettings.guild.voice_channels:
+		missingMembers.extend(matchService.GetNotInQueue(channel.members))
+
+	if (len(missingMembers) == 0):
+		await SendMessage(ctx, description='Nobody is missing from queue.', color=discord.Color.blue())
+		return
+
+	field = {}
+	field['name'] = 'Players not in queue'
+	field['value'] = ''
+	field['inline'] = False
+
+	isFirst = True
+
+	for member in missingMembers:
+		if (isFirst):
+			isFirst = False
+		else:
+			description += '\n'
+
+		field['value'] += '{0.mention}\n'.format(member)
+
+	await SendMessage(ctx, fields=[field], color=discord.Color.blue())
+
 @bot.command(name='forcestartmatch')
 @IsValidChannel(ChannelType.LOBBY)
 @IsAdmin()
@@ -205,6 +257,20 @@ async def OnSetChannel(ctx, channel:discord.TextChannel, channelType:ChannelType
 		botSettings.SetReportChannel(channel)
 
 	await SendMessage(ctx, description='{0.mention} has been set as the {1.value} channel'.format(channel, channelType), color=discord.Color.blue())
+
+@bot.command(name='channels')
+@IsAdmin()
+@IsValidChannel(ChannelType.ADMIN)
+async def OnShowChannels(ctx):
+	print('Showing channels')
+
+	description='Lobby Channel: {}\n'.format('Not setup' if botSettings.lobbyChannel is None else botSettings.lobbyChannel.mention)
+	description+='Register Channel: {}\n'.format('Not setup' if botSettings.registerChannel is None else botSettings.registerChannel.mention)
+	description+='Report Channel: {}\n'.format('Not setup' if botSettings.reportChannel is None else botSettings.reportChannel.mention)
+	description+='Results Channel: {}\n'.format('Not setup' if botSettings.resultsChannel is None else botSettings.resultsChannel.mention)
+	description+='Admin Channel: {}'.format('Not setup' if botSettings.adminChannel is None else botSettings.adminChannel.mention)
+
+	await SendMessage(ctx, description=description, color=discord.Color.blue())
 
 @bot.command(name='setregisteredrole')
 @IsAdmin()
@@ -684,23 +750,28 @@ async def OnShowStats(ctx):
 	worstMap = worstMaps[0] if len(worstMaps) > 0 else None
 
 	winLossDelta = player.wins - player.loses
+	winLossPercent = player.wins / (1 if player.matchesPlayed == 0 else player.matchesPlayed)
 	wlDelta = '{}{}'.format('+' if winLossDelta >= 0 else '-', abs(winLossDelta))
 
 	title = 'Stats for {}'.format(player.name)
 	description = '**Rank:** {0.mention}\n'.format(currentRole.role)
-	description += '**MMR:** {0}\n'.format(player.mmr)
-	description += '**Matches Played:** {0}\n'.format(player.matchesPlayed)
-	description += '**Win/Loss:** {0}/{1} ({2})\n'.format(player.wins, player.loses, wlDelta)
+	description += '**MMR:** {}\n'.format(player.mmr)
+	description += '**Matches Played:** {}\n'.format(player.matchesPlayed)
+	description += '**Win/Loss:** {}/{} ({}, {}%)\n'.format(player.wins, player.loses, wlDelta, winLossPercent)
 
 	if (bestMap is not None):
 		bestMapDelta = bestMap[0] - bestMap[1]
+		numPlayed = bestMap[0] + bestMap[1]
+		bestMapWinLossPercent = bestMap[0] / (1 if numPlayed == 0 else numPlayed)
 		bmDelta = '{}{}'.format('+' if bestMapDelta >= 0 else '-', abs(bestMapDelta))
-		description += '**Best Map:** {} ({})\n'.format(bestMap[2], bmDelta)
+		description += '**Best Map:** {} ({}, {}%)\n'.format(bestMap[2], bmDelta, bestMapWinLossPercent)
 
 	if (worstMap is not None):
 		worstMapDelta = worstMap[0] - worstMap[1]
+		numPlayed = worstMap[0] + worstMap[1]
+		worstMapWinLossPercent = worstMap[0] / (1 if numPlayed == 0 else numPlayed)
 		wmDelta = '{}{}'.format('+' if worstMapDelta >= 0 else '-', abs(worstMapDelta))
-		description += '**Worst Map:** {} ({})'.format(worstMap[2], wmDelta)
+		description += '**Worst Map:** {} ({}, {}%)'.format(worstMap[2], wmDelta, worstMapWinLossPercent)
 
 	await SendMessage(ctx, title=title, description=description, color=discord.Color.blue())
 
@@ -727,6 +798,10 @@ async def OnShowStats(ctx):
 @OnShowLeaderboards.error
 @OnRecallMatch.error
 @OnShowStats.error
+@OnClearQueue.error
+@OnKickPlayerFromQueue.error
+@OnShowChannels.error
+@OnShowMissingPlayers.error
 async def errorHandling(ctx, error):
 	print('Error: {}'.format(error))
 	if (isinstance(error, commands.ChannelNotFound)):
