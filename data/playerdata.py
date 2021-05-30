@@ -36,7 +36,7 @@ class PlayerData(Document):
 		self.wins = self._wins
 		self.loses = self._loses
 		self.name = self._name
-		self.user = await bot.fetch_user(self._user)
+		self.user = bot.get_user(self._user)
 
 	def RedoData(self, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
 		# undo the previous match

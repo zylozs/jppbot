@@ -25,6 +25,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="commands\admincommands.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="commands\botcommands.py">
       <SubType>Code</SubType>
     </Compile>
@@ -32,6 +35,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="data\siegemap.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="globals.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="jppbot.py" />
@@ -47,7 +53,13 @@
     <Compile Include="services\matchservice.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="utils\botutils.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="utils\chatutils.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="utils\errorutils.py">
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>

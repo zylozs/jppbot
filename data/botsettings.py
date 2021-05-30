@@ -395,6 +395,8 @@ class BotSettings(Document):
 			returnType = True
 		elif (channel is self.registerChannel and channelType is ChannelType.REGISTER):
 			returnType = True
+		elif (channel is self.reportChannel and channelType is ChannelType.REPORT):
+			returnType = True
 
 		if (returnType is False and channel is self.adminChannel and includeAdmin):
 			returnType = True
