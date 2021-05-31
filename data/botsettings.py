@@ -8,6 +8,7 @@ from discord.ext import commands
 from mongoengine import Document, IntField 
 import discord
 import random
+import math
 
 class ChannelTypeInvalid(commands.BadArgument):
 	def __init__(self, argument):
@@ -21,6 +22,11 @@ class RegisteredRoleUnitialized(commands.CommandError):
 class AdminRoleUnitialized(commands.CommandError):
 	def __init__(self):
 		super().__init__('The admin role has not been setup.')
+
+class UserNotAdmin(commands.CommandError):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('The user {0.mention} is not an admin'.format(argument))
 
 class GuildTextChannelMismatch(commands.BadArgument):
 	def __init__(self, argument):
@@ -47,6 +53,7 @@ class ChannelType(Enum):
 	RESULTS = "result"
 	ADMIN = "admin"
 	REGISTER = "register"
+	REPORT = "report"
 	INVALID = "invalid"
 
 	@classmethod
@@ -62,6 +69,8 @@ class ChannelType(Enum):
 			returnType = ChannelType.ADMIN
 		elif (tempArg.__contains__(ChannelType.REGISTER.value)):
 			returnType = ChannelType.REGISTER
+		elif (tempArg.__contains__(ChannelType.REPORT.value)):
+			returnType = ChannelType.REPORT
 
 		if (returnType is ChannelType.INVALID):
 			raise ChannelTypeInvalid(argument)
@@ -76,6 +85,7 @@ class BotSettings(Document):
 	_resultsChannel = IntField(default=-1)
 	_adminChannel = IntField(default=-1) 
 	_registerChannel = IntField(default=-1)
+	_reportChannel = IntField(default=-1)
 	_registeredRole = IntField(default=-1)
 	_adminRole = IntField(default=-1)
 	_nextUniqueMatchID = IntField(default=0)
@@ -86,6 +96,7 @@ class BotSettings(Document):
 	resultsChannel = None # discord.TextChannel
 	adminChannel = None # discord.TextChannel
 	registerChannel = None # discord.TextChannel
+	reportChannel = None # discord.TextChannel
 	registeredRole = None # discord.Role
 	adminRole = None # discord.Role
 
@@ -121,6 +132,7 @@ class BotSettings(Document):
 		self.resultsChannel = self._GetChannel(self._resultsChannel)
 		self.adminChannel = self._GetChannel(self._adminChannel)
 		self.registerChannel = self._GetChannel(self._registerChannel)
+		self.reportChannel = self._GetChannel(self._reportChannel)
 
 		# Player data
 		# Type: Dictionary<key=discord.User, value=PlayerData>
@@ -215,6 +227,19 @@ class BotSettings(Document):
 		else:
 			raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')
 
+	# channel: Union[None, discord.TextChannel]
+	def SetReportChannel(self, channel):
+		if (channel is None):
+			self.reportChannel = None
+			self._reportChannel = -1
+			self.save()
+		elif (isinstance(channel, discord.TextChannel)):
+			self.reportChannel = channel
+			self._reportChannel = channel.id
+			self.save()
+		else:
+			raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')
+
 	# channel: Union[None, discord.Role]
 	def SetRegisteredRole(self, role):
 		if (role is None):
@@ -261,14 +286,20 @@ class BotSettings(Document):
 		self.mmrRoles[role.id].delete() # remove entry from database
 		del self.mmrRoles[role.id]
 
-	def AddMap(self, name:str):
+	def AddMap(self, name:str, thumbnailURL:str):
 		_map = SiegeMap()
-		_map.SetName(name)
+		_map.SetName(name, thumbnailURL)
 		self.maps[name.lower()] = _map
 	
 	def RemoveMap(self, name:str):
 		self.maps[name.lower()].delete() # remove entry from database
 		del self.maps[name.lower()]
+
+	def SetMapThumbnail(self, name:str, thumbnailURL:str):
+		self.maps[name.lower()].SetThumbnail(thumbnailURL)
+
+	def GetMapThumbnail(self, name:str):
+		return self.maps[name.lower()].thumbnailURL
 
 	def SetMMR(self, user:discord.User, mmr:int):
 		return self.SetMMRByID(user.id, mmr)
@@ -315,6 +346,9 @@ class BotSettings(Document):
 
 	def GetSortedRegisteredPlayers(self):
 		return sorted(self.registeredPlayers.values(), key=lambda player : player.mmr, reverse=True)
+
+	def GetRegisteredPlayerByID(self, id:int):
+		return self.registeredPlayers[id]
 
 	def GetTestPlayers(self, num:int):
 		testPlayers = []
@@ -367,6 +401,8 @@ class BotSettings(Document):
 			returnType = True
 		elif (channel is self.registerChannel and channelType is ChannelType.REGISTER):
 			returnType = True
+		elif (channel is self.reportChannel and channelType is ChannelType.REPORT):
+			returnType = True
 
 		if (returnType is False and channel is self.adminChannel and includeAdmin):
 			returnType = True
@@ -379,8 +415,20 @@ class BotSettings(Document):
 		self.save()
 		return id
 
-	def GetRandomMap(self):
-		return random.choice(self.GetSortedMaps())
+	def GetRandomMap(self, enablePMCCOverride = False):
+		# sort by times played. Less played maps towards the beginning and more played maps towards the end
+		sortedMaps = sorted(self.maps.values(), key=lambda _map : _map.timesPlayed)
+
+		# random amongst the least played maps (numMaps / 3)
+		numMapsToKeep = int(math.ceil(len(sortedMaps) / 3))
+
+		leastPlayedMaps = sortedMaps[:numMapsToKeep]
+
+		if ('villa' in self.maps and enablePMCCOverride):
+			if (self.maps['villa'] not in leastPlayedMaps):
+				leastPlayedMaps.append(self.maps['villa'])
+
+		return random.choice(leastPlayedMaps)
 
 	def DeclareMapPlayed(self, mapName:str):
 		self.maps[mapName.lower()].IncrementTimesPlayed()

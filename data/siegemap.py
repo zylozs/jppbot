@@ -15,10 +15,12 @@ class SiegeMap(Document):
 	# Database fields.  Dont modify or access directly, use the non underscore versions
 	_timesPlayed = IntField(default=0)
 	_name = StringField(default='')
+	_thumbnailURL = StringField(default='')
 
 	# Settings
 	timesPlayed = 0
 	name = ''
+	thumbnailURL = ''
 
 	def __eq__(self, other):
 		return self.name.lower == other.name.lower
@@ -26,10 +28,18 @@ class SiegeMap(Document):
 	def Init(self):
 		self.timesPlayed = self._timesPlayed
 		self.name = self._name
+		self.thumbnailURL = self._thumbnailURL
 
-	def SetName(self, name:str):
+	def SetName(self, name:str, url:str):
 		self.name = name
 		self._name = name
+		self.thumbnailURL = url 
+		self._thumbnailURL = url 
+		self.save()
+
+	def SetThumbnail(self, url:str):
+		self.thumbnailURL = url 
+		self._thumbnailURL = url 
 		self.save()
 
 	def IncrementTimesPlayed(self):
