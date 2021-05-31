@@ -8,10 +8,17 @@ from utils.errorutils import HandleError
 from globals import *
 from discord.ext import commands
 import discord
+import random
 
 class BotCommands(commands.Cog):
 	def __init__(self, bot):
 		self.bot = bot
+
+	@commands.Cog.listener()
+	async def on_message(self, message):
+		if self.bot.user.mentioned_in(message):
+			quips = ['Bonjour', str(discord.utils.get(message.guild.emojis, name='jpp')), 'yolo', 'Sorry, im playing Apex', ':sunglasses:', 'Beat Saber :heart:']
+			await message.channel.send(random.choice(quips))
 
 	@commands.Cog.listener()
 	async def on_ready(self):
@@ -21,11 +28,18 @@ class BotCommands(commands.Cog):
 	@commands.command(name='jpp')
 	async def OnJPP(self, ctx):
 		"""jpp"""
-		await ctx.send(':jpp:')
+
+		emoji = discord.utils.get(ctx.guild.emojis, name='jpp')
+		await ctx.send(str(emoji))
+
+	@commands.command(name='golfit')
+	async def OnGolfIt(self, ctx):
+		"""For all your golf it music needs"""
+		await ctx.send('https://www.youtube.com/watch?v=KtmGzvBjAYU')
 
 	@commands.command(name='whendoesbeauloplay')
 	async def OnWhenDoesBeauloPlay(self, ctx):
-		""":eyes:"""
+		"""👀"""
 		await ctx.send(':eyes: https://www.twitch.tv/beaulo')
 	
 	@commands.command(name='register', aliases=['r'], brief='Allows a user to register with the bot')
@@ -252,5 +266,6 @@ class BotCommands(commands.Cog):
 	@OnShowRanks.error
 	@OnShowMaps.error
 	@OnShowStats.error
+	@OnGolfIt.error
 	async def errorHandling(self, ctx, error):
 		await HandleError(ctx, error)
