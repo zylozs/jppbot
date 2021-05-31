@@ -45,7 +45,11 @@ class BotCommands(commands.Cog):
 	@commands.command(name='register', aliases=['r'], brief='Allows a user to register with the bot')
 	@IsValidChannel(ChannelType.REGISTER)
 	async def OnRegisterPlayer(self, ctx, name:str):
-		"""Allows a user to register with the bot. This enables matchmaking functionality for that user."""
+		"""Allows a user to register with the bot. This enables matchmaking functionality for that user.
+
+		   **string:** <name>
+		   The name you want to use with the bot. No spaces allowed.
+		"""
 		print('User {0.author} is registering with name {1}'.format(ctx, name))
 	
 		if (botSettings.registeredRole is None):
@@ -65,7 +69,11 @@ class BotCommands(commands.Cog):
 
 	@commands.command(name='setname')
 	async def OnSetName(self, ctx, name:str):
-		"""Change your name with the bot"""
+		"""Change your name with the bot
+		
+		   **string:** <name>
+		   The name you want to use with the bot. No spaces allowed.
+		"""
 		print('User {0.author} is changing their name to {1}'.format(ctx, name))
 
 		if (not botSettings.IsUserRegistered(ctx.author)):

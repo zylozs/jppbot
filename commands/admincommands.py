@@ -39,7 +39,17 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.LOBBY)
 	@IsAdmin()
 	async def OnKickPlayerFromQueue(self, ctx, member:discord.Member):
-		"""Kicks a player from the matchmaking queue"""
+		"""Kicks a player from the matchmaking queue
+		
+		   **discord.Member:** <member>
+		   The member you want to kick. 
+		   You can use any of the following to identify them:
+		   - ID (i.e. 123456789)
+		   - mention (i.e. @Name)
+		   - name#discrim (i.e. Name#1234  (case sensitive))
+		   - name (i.e. Name  (case sensitive)
+		   - nickname (i.e. Nickname  (case sensitive))
+		"""
 		print('{} is kicking {} from the queue'.format(ctx.author, member))
 
 		await matchService.KickFromQueue(ctx, member)
@@ -57,7 +67,16 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
 	async def OnClearChannel(self, ctx, channelType:ChannelType):
-		"""Clears a channel from use with the bot"""
+		"""Clears a channel from use with the bot
+
+		   **string:** <channelType>
+		   Types available (not case sensitive):
+		   - lobby
+		   - register
+		   - results
+		   - report
+		   - admin
+		"""
 		print('Channel type: {}'.format(channelType))
 
 		if (channelType is ChannelType.LOBBY):
@@ -82,7 +101,23 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
 	async def OnSetChannel(self, ctx, channel:discord.TextChannel, channelType:ChannelType):
-		"""Sets a channel for use with the bot"""
+		"""Sets a channel for use with the bot
+
+		   **discord.TextChannel:** <channel>
+		   The text channel you want to use.
+		   You can use any of the following to identify it:
+		   - ID (i.e. 123456789)
+		   - mention (i.e. #Name)
+		   - name (i.e. Name  (case sensitive)
+
+		   **string:** <channelType>
+		   Types available (not case sensitive):
+		   - lobby
+		   - register
+		   - results
+		   - report
+		   - admin
+		"""
 		print('Setting Channel: {} type: {}'.format(channel, channelType))
 
 		# setup guild if missing
@@ -123,7 +158,15 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
 	async def OnSetRegisteredRole(self, ctx, role:discord.Role):
-		"""Sets the registered role"""
+		"""Sets the registered role
+
+		   **discord.Role:** <role>
+		   The role you want to use for registered players.
+		   You can use any of the following to identify it:
+		   - ID (i.e. 123456789)
+		   - mention (i.e. @RoleName)
+		   - name (i.e. RoleName  (case sensitive)
+		"""
 		print('Setting Registered Role: {}'.format(role))
 
 		# setup guild if missing
@@ -144,7 +187,15 @@ class AdminCommands(commands.Cog):
 	@commands.has_permissions(administrator=True)
 	@IsValidChannel(ChannelType.ADMIN)
 	async def OnSetAdminRole(self, ctx, role:discord.Role):
-		"""Sets the admin role"""
+		"""Sets the admin role
+
+		   **discord.Role:** <role>
+		   The role you want to use to give admin priviledges with the bot.
+		   You can use any of the following to identify it:
+		   - ID (i.e. 123456789)
+		   - mention (i.e. @RoleName)
+		   - name (i.e. RoleName  (case sensitive)
+		"""
 		print('Setting Admin Role: {}'.format(role))
 
 		# setup guild if missing
@@ -165,7 +216,24 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
 	async def OnAddRank(self, ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
-		"""Adds a rank"""
+		"""Adds a rank
+
+		   **discord.Role:** <role>
+		   The role you want to use for a rank.
+		   You can use any of the following to identify it:
+		   - ID (i.e. 123456789)
+		   - mention (i.e. @RoleName)
+		   - name (i.e. RoleName  (case sensitive)
+
+		   **int:** <mmrMin>
+		   The minimum MMR for this rank (inclusive)
+
+		   **int:** <mmrMax>
+		   The maximum MMR for this rank (inclusive)
+
+		   **int:** <mmrDelta>
+		   The MMR increase or decrease after each match
+		"""
 		print('Adding new rank: {} min: {} max: {} delta: {}'.format(role, mmrMin, mmrMax, mmrDelta))
 
 		# setup guild if missing
@@ -187,7 +255,24 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
 	async def OnUpdateRank(self, ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
-		"""Updates a rank's mmr range and delta"""
+		"""Updates a rank's mmr range and delta
+
+		   **discord.Role:** <role>
+		   The role associated with the rank you want to update
+		   You can use any of the following to identify it:
+		   - ID (i.e. 123456789)
+		   - mention (i.e. @RoleName)
+		   - name (i.e. RoleName  (case sensitive)
+
+		   **int:** <mmrMin>
+		   The minimum MMR for this rank (inclusive)
+
+		   **int:** <mmrMax>
+		   The maximum MMR for this rank (inclusive)
+
+		   **int:** <mmrDelta>
+		   The MMR increase or decrease after each match
+		"""
 		print('Updating existing rank: {} min: {} max: {} delta: {}'.format(role, mmrMin, mmrMax, mmrDelta))
 
 		# setup guild if missing
@@ -209,7 +294,15 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
 	async def OnRemoveRank(self, ctx, role:discord.Role):
-		"""Removes a rank"""
+		"""Removes a rank
+
+		   **discord.Role:** <role>
+		   The role associated with the rank you want to remove 
+		   You can use any of the following to identify it:
+		   - ID (i.e. 123456789)
+		   - mention (i.e. @RoleName)
+		   - name (i.e. RoleName  (case sensitive)
+		"""
 		print('Removing rank: {}'.format(role))
 
 		# setup guild if missing
@@ -237,7 +330,20 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
 	async def OnSetMMR(self, ctx, member:discord.Member, mmr:int):
-		"""Set a player's mmr"""
+		"""Set a player's mmr
+
+		   **discord.Member:** <member>
+		   The member you want to change the mmr of. 
+		   You can use any of the following to identify them:
+		   - ID (i.e. 123456789)
+		   - mention (i.e. @Name)
+		   - name#discrim (i.e. Name#1234  (case sensitive))
+		   - name (i.e. Name  (case sensitive)
+		   - nickname (i.e. Nickname  (case sensitive))
+
+		   **int:** <mmr>
+		   The mmr you want to set the member to.
+		"""
 		print('Setting MMR on {0} to {1}'.format(member, mmr))
 
 		if (not botSettings.IsUserRegistered(member)):
@@ -269,7 +375,17 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
 	async def OnRefreshUser(self, ctx, member:discord.Member):
-		"""Refresh a user's roles"""
+		"""Refresh a user's roles
+		
+		   **discord.Member:** <member>
+		   The member you want to refresh roles on.
+		   You can use any of the following to identify them:
+		   - ID (i.e. 123456789)
+		   - mention (i.e. @Name)
+		   - name#discrim (i.e. Name#1234  (case sensitive))
+		   - name (i.e. Name  (case sensitive)
+		   - nickname (i.e. Nickname  (case sensitive))
+		"""
 		print('Refreshing roles for user {}'.format(member))
 
 		if (botSettings.guild is None):
@@ -325,7 +441,11 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
 	async def OnAddMap(self, ctx, name:str):
-		"""Adds a map"""
+		"""Adds a map
+
+		   **string:** <name>
+		   The name of the map you want to add. Casing is preserved, but name validation is not case sensitive.
+		"""
 		print('Adding map: {}'.format(name))
 
 		if (botSettings.DoesMapExist(name)):
@@ -338,7 +458,11 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
 	async def OnRemoveMap(self, ctx, name:str):
-		"""Removes a map"""
+		"""Removes a map
+		
+		   **string:** <name>
+		   The name of the map you want to remove. This is not case sensitive. 
+		"""
 		print('Removing map: {}'.format(name))
 
 		if (not botSettings.DoesMapExist(name)):
@@ -351,7 +475,12 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
 	async def OnShowLeaderboards(self, ctx, page:int=1):
-		"""Shows the leaderboards"""
+		"""Shows the leaderboards
+		
+		   **int:** <page>
+		   **Default value:** 1
+		   The page of the leaderboards you want to show.
+		"""
 		print('Showing leaderboards')
 
 		players = botSettings.GetSortedRegisteredPlayers()
@@ -401,7 +530,25 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.REPORT)
 	@IsAdmin()
 	async def OnRecallMatch(self, ctx, matchID:int, newResult:MatchResult):
-		"""Lets you change the a match's result"""
+		"""Lets you change the a match's result
+
+		   **int:** <matchID>
+		   The unique ID of the match you want to modify. This will be the ID shown in any of the various match related messages.
+
+		   **string|int:** <newResult>
+		   The new result you want to match to have.
+		   Available results (not case sensitive):
+		   - 0 (Team 1 Victory)
+		   - 1 (Team 2 Victory)
+		   - 2 (Cancelled)
+		   - blue (Team 1 Victory)
+		   - team1 (Team 1 Victory)
+		   - t1 (Team 1 Victory)
+		   - orange (Team 2 Victory)
+		   - team2 (Team 2 Victory)
+		   - t2 (Team 2 Victory)
+		   - cancel (Cancelled)
+		"""
 		print('User {} is recalling the match {} with a new result: {}'.format(ctx.author, matchID, newResult))
 
 		if (newResult == MatchResult.INVALID):
@@ -517,7 +664,6 @@ class AdminCommands(commands.Cog):
 			await AddRoles(ctx, member, newRole.role, botSettings.registeredRole, errorMessage='Failed to add current rank to {0.mention}. Please try again.'.format(member))
 
 		await SendChannelMessage(botSettings.adminChannel, description='The ranks of all players in match #{} have been updated.'.format(match._matchUniqueID), color=discord.Color.blue())
-
 
 	@OnQuit.error
 	@OnClearQueue.error
