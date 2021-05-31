@@ -38,16 +38,19 @@ class PlayerData(Document):
 		self.name = self._name
 		self.user = bot.get_user(self._user)
 
-	def RedoData(self, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
+	def RedoData(self, oldDelta:int, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
 		# undo the previous match
 		if (prevResult == TeamResult.WIN):
 			self.wins -= 1
-			self.mmr -= mmrDelta
+			self.mmr -= oldDelta
 			self.matchesPlayed -= 1
 		elif (prevResult == TeamResult.LOSE):
 			self.loses -= 1
-			self.mmr += mmrDelta
+			self.mmr += oldDelta
 			self.matchesPlayed -= 1
+
+		# Clamp before changing the results to keep results consistent if the user hit something below 0 from this
+		self.mmr = max(self.mmr, 0)
 
 		if (newResult == TeamResult.WIN):
 			self.wins += 1
@@ -57,6 +60,9 @@ class PlayerData(Document):
 			self.loses += 1
 			self.mmr -= mmrDelta
 			self.matchesPlayed += 1
+
+		# Clamp the mmr so its not possible to go below 0
+		self.mmr = max(self.mmr, 0)
 
 		# Update database
 		self._mmr = self.mmr
@@ -74,6 +80,9 @@ class PlayerData(Document):
 		else:
 			self.loses += 1
 			self.mmr -= mmrDelta
+
+		# Clamp the mmr so its not possible to go below 0
+		self.mmr = max(self.mmr, 0)
 
 		self.matchesPlayed += 1
 

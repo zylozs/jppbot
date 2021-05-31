@@ -459,7 +459,7 @@ class BotSettings(Document):
 			oldRole = None
 			newRole = None
 
-		return oldMMR, newMMR, oldRole, newRole
+		return oldMMR, newMMR, oldRole, newRole, mmrDelta
 
 	def DeclareLoser(self, user:discord.User, mmrDelta=None):
 		return self.DeclareLoserByID(user.id, mmrDelta)
@@ -483,7 +483,7 @@ class BotSettings(Document):
 			oldRole = None
 			newRole = None
 
-		return oldMMR, newMMR, oldRole, newRole
+		return oldMMR, newMMR, oldRole, newRole, mmrDelta
 
 	def DeclareCancel(self, user:discord.User):
 		return self.DeclareCancelByID(user.id)
@@ -500,13 +500,13 @@ class BotSettings(Document):
 
 		return oldMMR, newMMR, mmrDelta
 
-	def RedoMatch(self, user:discord.User, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
-		return self.RedoMatchByID(user.id, mmrDelta, prevResult, newResult)
+	def RedoMatch(self, user:discord.User, oldDelta:int, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
+		return self.RedoMatchByID(user.id, oldDelta, mmrDelta, prevResult, newResult)
 
-	def RedoMatchByID(self, id:int, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
+	def RedoMatchByID(self, id:int, oldDelta:int, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
 		oldMMR = self.GetMMRByID(id)
 
-		self.registeredPlayers[id].RedoData(mmrDelta, prevResult, newResult)
+		self.registeredPlayers[id].RedoData(oldDelta, mmrDelta, prevResult, newResult)
 
 		newMMR = self.GetMMRByID(id)
 		oldRole, newRole = self.GetMMRRoleByID(id, oldMMR)
