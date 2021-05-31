@@ -1,5 +1,5 @@
 from discord.ext import commands
-from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch , InvalidGuild, RegisteredRoleUnitialized
+from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch , InvalidGuild, RegisteredRoleUnitialized, EmptyName
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, InvalidMatchResult, MatchIDNotFound, MatchResultIdentical, MatchResult
 from data.mmrrole import MMRRoleExists, MMRRoleRangeConflict, InvalidMMRRole, NoMMRRoles
@@ -29,7 +29,7 @@ class AdminCommands(commands.Cog):
 	@commands.command(name='forceregister')
 	@IsValidChannel(ChannelType.REGISTER)
 	@IsAdmin()
-	async def OnForceRegisterPlayer(self, ctx, member:discord.Member, name:str, initialMMR:int):
+	async def OnForceRegisterPlayer(self, ctx, member:discord.Member, initialMMR:int, *name):
 		"""Registers a player
 		
 		   **discord.Member:** <member>
@@ -41,13 +41,17 @@ class AdminCommands(commands.Cog):
 		   - name (i.e. Name  (case sensitive)
 		   - nickname (i.e. Nickname  (case sensitive))
 
-		   **string:** <name>
-		   The name you want to give the user with the bot. No spaces allowed.
-
 		   **int:** <initialMMR>
 		   The initial MMR you want to give the user with the bot.
+
+		   **string:** <name>
+		   The name you want to give the user with the bot. Spaces and special characters are allowed.
 		"""
-		print('User {0.author} is force registering {1} with name {2} and initial mmr of {3}'.format(ctx, member, name, initialMMR))
+		if (len(name) == 0):
+			raise EmptyName()
+
+		combinedName = ' '.join(name)
+		print('User {0.author} is force registering {1} with name {2} and initial mmr of {3}'.format(ctx, member, combinedName, initialMMR))
 
 		if (botSettings.registeredRole is None):
 			raise RegisteredRoleUnitialized()
@@ -58,11 +62,11 @@ class AdminCommands(commands.Cog):
 		try:
 			await member.add_roles(botSettings.registeredRole, reason='User {0.name} used the forceregister command'.format(ctx.author))
 
-			botSettings.RegisterUser(member, name)
+			botSettings.RegisterUser(member, combinedName)
 
 			botSettings.SetMMR(member, initialMMR)
 
-			await SendMessage(ctx, description='You have registered {0.mention} as `{1}` with an initial MMR of {2}.'.format(member, name, initialMMR), color=discord.Color.blue())
+			await SendMessage(ctx, description='You have registered {0.mention} as `{1}` with an initial MMR of {2}.'.format(member, combinedName, initialMMR), color=discord.Color.blue())
 		except discord.HTTPException:
 			await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
 

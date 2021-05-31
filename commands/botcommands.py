@@ -1,4 +1,4 @@
-from data.botsettings import ChannelType, RegisteredRoleUnitialized, InvalidGuild
+from data.botsettings import ChannelType, RegisteredRoleUnitialized, InvalidGuild, EmptyName
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, MatchResult
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued
@@ -44,13 +44,17 @@ class BotCommands(commands.Cog):
 	
 	@commands.command(name='register', aliases=['r'], brief='Allows a user to register with the bot')
 	@IsValidChannel(ChannelType.REGISTER)
-	async def OnRegisterPlayer(self, ctx, name:str):
+	async def OnRegisterPlayer(self, ctx, *name):
 		"""Allows a user to register with the bot. This enables matchmaking functionality for that user.
 
 		   **string:** <name>
-		   The name you want to use with the bot. No spaces allowed.
+		   The name you want to use with the bot. Spaces and special characters are allowed.
 		"""
-		print('User {0.author} is registering with name {1}'.format(ctx, name))
+		if (len(name) == 0):
+			raise EmptyName()
+
+		combinedName = ' '.join(name)
+		print('User {0.author} is registering with name {1}'.format(ctx, combinedName))
 	
 		if (botSettings.registeredRole is None):
 			raise RegisteredRoleUnitialized()
@@ -61,27 +65,31 @@ class BotCommands(commands.Cog):
 		try:
 			await ctx.author.add_roles(botSettings.registeredRole, reason='User {0.name} used the register command'.format(ctx.author))
 
-			botSettings.RegisterUser(ctx.author, name)
+			botSettings.RegisterUser(ctx.author, combinedName)
 
-			await SendMessage(ctx, description='You have been registered as `{}`!'.format(name), color=discord.Color.blue())
+			await SendMessage(ctx, description='You have been registered as `{}`!'.format(combinedName), color=discord.Color.blue())
 		except discord.HTTPException:
 			await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
 
 	@commands.command(name='setname')
-	async def OnSetName(self, ctx, name:str):
+	async def OnSetName(self, ctx, *name):
 		"""Change your name with the bot
 		
 		   **string:** <name>
-		   The name you want to use with the bot. No spaces allowed.
+		   The name you want to use with the bot. Spaces and special characters are allowed.
 		"""
-		print('User {0.author} is changing their name to {1}'.format(ctx, name))
+		if (len(name) == 0):
+			raise EmptyName()
+
+		combinedName = ' '.join(name)
+		print('User {0.author} is changing their name to {1}'.format(ctx, combinedName))
 
 		if (not botSettings.IsUserRegistered(ctx.author)):
 			raise UserNotRegistered(ctx.author)
 
-		botSettings.ChangeName(ctx.author, name)
+		botSettings.ChangeName(ctx.author, combinedName)
 
-		await SendMessage(ctx, description='Your name has been changed to `{}`'.format(name), color=discord.Color.blue())
+		await SendMessage(ctx, description='Your name has been changed to `{}`'.format(combinedName), color=discord.Color.blue())
 
 	@commands.command(name='join', aliases=['j'])
 	@IsValidChannel(ChannelType.LOBBY)
