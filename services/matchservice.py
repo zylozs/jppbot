@@ -334,6 +334,8 @@ class MatchService(object):
 		message = await SendChannelMessage(self.botSettings.reportChannel, title=title, description=description, thumbnail=thumbnail, fields=[team1Field, team2Field, adminField], reactions=reactions)
 
 		def IsValidAdminAndEmoji(reaction, user):
+			if (user.bot):
+				return False
 			return self.botSettings.IsUserAdmin(user) and str(reaction.emoji) in reactions
 
 		# Wait for an admin to report the results
@@ -384,17 +386,17 @@ class MatchService(object):
 				newMMR = 0
 				oldRole = None
 				newRole = None
-				mmrDelta = None
+				mmrDelta = 0
 
 				if (result == TeamResult.WIN):
-					oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareWinner(player.user)
+					oldMMR, newMMR, oldRole, newRole, mmrDelta = self.botSettings.DeclareWinner(player.user)
 				elif (result == TeamResult.LOSE):
-					oldMMR, newMMR, oldRole, newRole = self.botSettings.DeclareLoser(player.user)
+					oldMMR, newMMR, oldRole, newRole, mmrDelta = self.botSettings.DeclareLoser(player.user)
 				else:
 					oldMMR, newMMR, mmrDelta = self.botSettings.DeclareCancel(player.user)
 
-				delta = int(abs(newMMR - oldMMR)) if mmrDelta is None else mmrDelta
-				teamData.append(MatchHistoryPlayerData(_id=player.user.id, _prevMMR=oldMMR, _newMMR=newMMR, _mmrDelta=delta))
+				delta = int(abs(newMMR - oldMMR))
+				teamData.append(MatchHistoryPlayerData(_id=player.user.id, _prevMMR=oldMMR, _newMMR=newMMR, _mmrDelta=mmrDelta))
 
 				if (isFirst):
 					isFirst = False

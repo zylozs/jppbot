@@ -638,6 +638,9 @@ class AdminCommands(commands.Cog):
 			teamField['value'] = ''
 			teamField['inline'] = False
 
+			if (teamResult == TeamResult.CANCEL):
+				teamField['name'] = ' Team {}'.format(teamName)
+
 			return teamField
 
 		def AddToField(field, isFirst, id, sign, oldMMR, delta, newMMR, oldRole, newRole):
@@ -678,7 +681,8 @@ class AdminCommands(commands.Cog):
 
 		isFirst = True
 		for player in match._team1:
-			oldMMR, newMMR, oldRole, newRole = botSettings.RedoMatchByID(player._id, player._mmrDelta, team1PrevResult, team1NewResult)
+			oldDelta = int(abs(player._newMMR - player._prevMMR))
+			oldMMR, newMMR, oldRole, newRole = botSettings.RedoMatchByID(player._id, oldDelta, player._mmrDelta, team1PrevResult, team1NewResult)
 			player._prevMMR = oldMMR
 			player._newMMR = newMMR
 			delta = int(abs(newMMR - oldMMR))
@@ -691,7 +695,8 @@ class AdminCommands(commands.Cog):
 			
 		isFirst = True
 		for player in match._team2:
-			oldMMR, newMMR, oldRole, newRole = botSettings.RedoMatchByID(player._id, player._mmrDelta, team2PrevResult, team2NewResult)
+			oldDelta = int(abs(player._newMMR - player._prevMMR))
+			oldMMR, newMMR, oldRole, newRole = botSettings.RedoMatchByID(player._id, oldDelta, player._mmrDelta, team2PrevResult, team2NewResult)
 			player._prevMMR = oldMMR
 			player._newMMR = newMMR
 			delta = int(abs(newMMR - oldMMR))
@@ -705,12 +710,15 @@ class AdminCommands(commands.Cog):
 		match._result = newResult.value
 		match.save()
 
+		description = '**Creation Time:** {}\n**Map:** {}'.format(match._creationTime, match._map)
+
 		if (newResult == MatchResult.TEAM1VICTORY):
-			await SendChannelMessage(botSettings.resultsChannel, title=title, fields=[team1Field, team2Field], footer=footer, color=discord.Color.blue())
+			await SendChannelMessage(botSettings.resultsChannel, title=title, description=description, fields=[team1Field, team2Field], footer=footer, color=discord.Color.blue())
 		elif (newResult == MatchResult.TEAM2VICTORY):
-			await SendChannelMessage(botSettings.resultsChannel, title=title, fields=[team2Field, team1Field], footer=footer, color=discord.Color.blue())
+			await SendChannelMessage(botSettings.resultsChannel, title=title, description=description, fields=[team2Field, team1Field], footer=footer, color=discord.Color.blue())
 		else:
-			await SendChannelMessage(botSettings.resultsChannel, title=title, description='This match has been cancelled.', footer=footer, color=discord.Color.blue())
+			description += '\nnThis match has been cancelled.'
+			await SendChannelMessage(botSettings.resultsChannel, title=title, description=description, footer=footer, color=discord.Color.blue())
 
 		# Now we need to refresh roles for all users on both teams
 		mmrRoles = botSettings.GetAllMMRRoles()
