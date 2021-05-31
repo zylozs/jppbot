@@ -665,6 +665,32 @@ class AdminCommands(commands.Cog):
 
 		await SendChannelMessage(botSettings.adminChannel, description='The ranks of all players in match #{} have been updated.'.format(match._matchUniqueID), color=discord.Color.blue())
 
+	@commands.command('forcemap')
+	@IsValidChannel(ChannelType.LOBBY)
+	@IsAdmin()
+	async def OnForceMap(self, ctx, map:str):
+		"""Forces the next/current map
+		   If there is nobody in queue and there is no match currently being played, this command is ignored. Priority is given to changing the current map if possible and changing the next map second if not.
+
+		   **string:** <map>
+		   The map you want to force as the next map (or current map if the match has already started).
+		"""
+		print('Forcing map to {}'.format(map))
+
+		if (not botSettings.DoesMapExist(map)):
+			raise InvalidMap(map)
+
+		await matchService.ForceMap(ctx, botSettings.maps[map.lower()].name)
+
+	@commands.command('rerollmap')
+	@IsValidChannel(ChannelType.LOBBY)
+	@IsAdmin()
+	async def OnRerollMap(self, ctx):
+		"""Rerolls the current map for the match"""
+		print('Rerolling the map')
+
+		await matchService.RerollMap(ctx)
+
 	@OnQuit.error
 	@OnClearQueue.error
 	@OnKickPlayerFromQueue.error
@@ -684,6 +710,8 @@ class AdminCommands(commands.Cog):
 	@OnRemoveMap.error
 	@OnShowLeaderboards.error
 	@OnRecallMatch.error
+	@OnForceMap.error
+	@OnRerollMap.error
 	async def errorHandling(self, ctx, error):
 		await HandleError(ctx, error)
 
