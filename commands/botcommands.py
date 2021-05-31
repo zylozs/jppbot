@@ -97,6 +97,9 @@ class BotCommands(commands.Cog):
 		"""Join the matchmaking queue"""
 		print('User {0.author} is joining queue.'.format(ctx))
 
+		if (not botSettings.IsUserRegistered(ctx.author)):
+			raise UserNotRegistered(ctx.author)
+
 		if (matchService.IsPlayerQueued(ctx.author)):
 			raise PlayerAlreadyQueued(ctx.author)
 
@@ -107,6 +110,9 @@ class BotCommands(commands.Cog):
 	async def OnLeaveQueue(self, ctx):
 		"""Leave the matchmaking queue"""
 		print('User {0.author} is leaving queue.'.format(ctx))
+
+		if (not botSettings.IsUserRegistered(ctx.author)):
+			raise UserNotRegistered(ctx.author)
 
 		if (not matchService.IsPlayerQueued(ctx.author)):
 			raise PlayerNotQueued(ctx.author)
