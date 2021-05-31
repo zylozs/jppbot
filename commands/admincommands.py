@@ -1,6 +1,6 @@
 from discord.ext import commands
-from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch , InvalidGuild
-from data.playerdata import UserNotRegistered
+from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch , InvalidGuild, RegisteredRoleUnitialized
+from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, InvalidMatchResult, MatchIDNotFound, MatchResultIdentical, MatchResult
 from data.mmrrole import MMRRoleExists, MMRRoleRangeConflict, InvalidMMRRole, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap
@@ -25,6 +25,46 @@ class AdminCommands(commands.Cog):
 		print('User {} has requested a quit. Closing bot.'.format(ctx.author))
 		disconnect() # disconect our MongoDB instance
 		await self.bot.close() # close our bot instance
+
+	@commands.command(name='forceregister')
+	@IsValidChannel(ChannelType.REGISTER)
+	@IsAdmin()
+	async def OnForceRegisterPlayer(self, ctx, member:discord.Member, name:str, initialMMR:int):
+		"""Registers a player
+		
+		   **discord.Member:** <member>
+		   The member you want to register.
+		   You can use any of the following to identify them:
+		   - ID (i.e. 123456789)
+		   - mention (i.e. @Name)
+		   - name#discrim (i.e. Name#1234  (case sensitive))
+		   - name (i.e. Name  (case sensitive)
+		   - nickname (i.e. Nickname  (case sensitive))
+
+		   **string:** <name>
+		   The name you want to give the user with the bot. No spaces allowed.
+
+		   **int:** <initialMMR>
+		   The initial MMR you want to give the user with the bot.
+		"""
+		print('User {0.author} is force registering {1} with name {2} and initial mmr of {3}'.format(ctx, member, name, initialMMR))
+
+		if (botSettings.registeredRole is None):
+			raise RegisteredRoleUnitialized()
+
+		if (botSettings.IsUserRegistered(member)):
+			raise UserAlreadyRegistered(member)
+
+		try:
+			await member.add_roles(botSettings.registeredRole, reason='User {0.name} used the forceregister command'.format(ctx.author))
+
+			botSettings.RegisterUser(member, name)
+
+			botSettings.SetMMR(member, initialMMR)
+
+			await SendMessage(ctx, description='You have registered {0.mention} as `{1}` with an initial MMR of {2}.'.format(member, name, initialMMR), color=discord.Color.blue())
+		except discord.HTTPException:
+			await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
 
 	@commands.command(name='clearqueue')
 	@IsValidChannel(ChannelType.LOBBY)
@@ -737,6 +777,7 @@ class AdminCommands(commands.Cog):
 	@OnForceMap.error
 	@OnRerollMap.error
 	@OnSetMapThumbnail.error
+	@OnForceRegisterPlayer.error
 	async def errorHandling(self, ctx, error):
 		await HandleError(ctx, error)
 
