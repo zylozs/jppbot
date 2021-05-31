@@ -1,4 +1,4 @@
-from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, UserNotAdmin
+from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, UserNotAdmin, EmptyName
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap 
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
@@ -85,6 +85,9 @@ async def HandleError(ctx, error):
 
 	elif (isinstance(error, UserNotAdmin)):
 		await SendMessage(ctx, description='You do not have permission to run this command.', color=discord.Color.red())
+
+	elif (isinstance(error, EmptyName)):
+		await SendMessage(ctx, description='An empty string is not a valid name', color=discord.Color.red())
 
 	elif (isinstance(error, commands.errors.MissingRequiredArgument)):
 		await SendMessage(ctx, description='Invalid usage: `{0.name}` is a required argument'.format(error.param), color=discord.Color.red())

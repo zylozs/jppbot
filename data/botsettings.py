@@ -48,6 +48,10 @@ class InvalidCommandChannel(commands.BadArgument):
 		self.type = type
 		super().__init__('{0.mention} is not the correct channel for {1.value} commands'.format(argument, type))
 
+class EmptyName(commands.BadArgument):
+	def __init__(self):
+		super().__init__('An empty string is not a valid name.')
+
 class ChannelType(Enum):
 	LOBBY = "lobby"
 	RESULTS = "result"
