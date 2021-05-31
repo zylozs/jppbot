@@ -28,6 +28,7 @@ connect(db="jppbot", host=ip, port=int(port))
 from globals import *
 from commands.admincommands import AdminCommands
 from commands.botcommands import BotCommands 
+from commands.helpcommand import HelpCommand 
 from discord.ext import commands
 import discord
 
@@ -37,6 +38,7 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix='!', description='A bot to host the weekly JPP sessions.', intents=intents)
 bot.add_cog(AdminCommands(bot))
 bot.add_cog(BotCommands(bot))
+bot.help_command = HelpCommand()
 
 matchService.Init(bot, botSettings)
 
