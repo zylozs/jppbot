@@ -440,18 +440,22 @@ class AdminCommands(commands.Cog):
 	@commands.command(name='addmap')
 	@IsValidChannel(ChannelType.ADMIN)
 	@IsAdmin()
-	async def OnAddMap(self, ctx, name:str):
+	async def OnAddMap(self, ctx, name:str, thumbnailURL:str =''):
 		"""Adds a map
 
 		   **string:** <name>
 		   The name of the map you want to add. Casing is preserved, but name validation is not case sensitive.
+
+		   **string:** <thumbnailURL> (Optional)
+		   **Default value:** ''
+		   The url of the image you want to use as the map's thumbnail. Omit if you dont want a thumbnail.
 		"""
-		print('Adding map: {}'.format(name))
+		print('Adding map {} with thumbnail {}'.format(name, thumbnailURL))
 
 		if (botSettings.DoesMapExist(name)):
 			raise MapExists(name)
 
-		botSettings.AddMap(name)
+		botSettings.AddMap(name, thumbnailURL)
 		await SendMessage(ctx, description='`{}` has been added as a map.'.format(name), color=discord.Color.blue())
 
 	@commands.command(name='removemap')
@@ -470,6 +474,26 @@ class AdminCommands(commands.Cog):
 
 		botSettings.RemoveMap(name)
 		await SendMessage(ctx, description='`{}` has been removed as a map.'.format(name), color=discord.Color.blue())	
+
+	@commands.command(name='setmapthumbnail')
+	@IsValidChannel(ChannelType.ADMIN)
+	@IsAdmin()
+	async def OnSetMapThumbnail(self, ctx, name:str, thumbnailURL:str):
+		"""Changes the thumbnail for a map
+
+		   **string:** <name>
+		   The name of the map you want to add. This is not case sensitive. 
+
+		   **string:** <thumbnailURL>
+		   The url of the image you want to use as the map's thumbnail. 
+		"""
+		print('Setting thumbnail for map {} to {}'.format(name, thumbnailURL))
+
+		if (not botSettings.DoesMapExist(name)):
+			raise InvalidMap(name)
+
+		botSettings.SetMapThumbnail(name, thumbnailURL)
+		await SendMessage(ctx, description='`{}` has been set as the thumbnail for map {}.'.format(thumbnailURL, name), color=discord.Color.blue())	
 
 	@commands.command(name='leaderboard')
 	@IsValidChannel(ChannelType.ADMIN)
@@ -712,6 +736,7 @@ class AdminCommands(commands.Cog):
 	@OnRecallMatch.error
 	@OnForceMap.error
 	@OnRerollMap.error
+	@OnSetMapThumbnail.error
 	async def errorHandling(self, ctx, error):
 		await HandleError(ctx, error)
 

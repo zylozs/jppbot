@@ -252,6 +252,7 @@ class MatchService(object):
 
 		title = 'Game #{} Started'.format(id)
 		description = '**Creation Time:** {}\n**Map:** {}'.format(creationTime, selectedMap)
+		thumbnail = self.botSettings.GetMapThumbnail(selectedMap)
 
 		team1Field = {}
 		team1Field['name'] = 'Team Blue :blue_square:'
@@ -329,8 +330,8 @@ class MatchService(object):
 		# and copy what it gives you in the message: \:YourEmoji:
 		reactions = ['🟦', '🟧', '❎']
 
-		await SendChannelMessage(self.botSettings.lobbyChannel, title=title, description=description, fields=[team1Field, team2Field], color=discord.Color.blue())
-		message = await SendChannelMessage(self.botSettings.reportChannel, title=title, description=description, fields=[team1Field, team2Field, adminField], reactions=reactions)
+		await SendChannelMessage(self.botSettings.lobbyChannel, title=title, description=description, thumbnail=thumbnail, fields=[team1Field, team2Field], color=discord.Color.blue())
+		message = await SendChannelMessage(self.botSettings.reportChannel, title=title, description=description, thumbnail=thumbnail, fields=[team1Field, team2Field, adminField], reactions=reactions)
 
 		def IsValidAdminAndEmoji(reaction, user):
 			return self.botSettings.IsUserAdmin(user) and str(reaction.emoji) in reactions
@@ -424,11 +425,12 @@ class MatchService(object):
 		title = 'Match Results: Game #{}'.format(id)
 		footer = 'This match was called by {}'.format(user)
 		description = '**Creation Time:** {}\n**Map:** {}'.format(self.matchesStarted[id].creationTime, self.matchesStarted[id].map)
+		thumbnail = self.botSettings.GetMapThumbnail(self.matchesStarted[id].map)
 
 		winnerTeam, winnerName, loserTeam, loserName = self.matchesStarted[id].GetTeamAndNames(matchResult)
 
 		if (matchResult == MatchResult.CANCELLED):
-			description += '\nThis match has been cancelled.'
+			description += '\n\nThis match has been cancelled.'
 
 			team1Data, team1Field = await self.GetTeamData(ctx, winnerTeam, winnerName, TeamResult.CANCEL)
 			team2Data, team2Field = await self.GetTeamData(ctx, loserTeam, loserName, TeamResult.CANCEL)
@@ -436,7 +438,7 @@ class MatchService(object):
 			self.matchesStarted[id].StoreMatchHistoryData(team1Data, team2Data, matchResult)
 			del self.matchesStarted[id]
 
-			await SendChannelMessage(self.botSettings.resultsChannel, title=title, description=description, footer=footer, color=discord.Color.blue())
+			await SendChannelMessage(self.botSettings.resultsChannel, title=title, description=description, thumbnail=thumbnail, footer=footer, color=discord.Color.blue())
 			return
 
 		winnerTeamData, winnerField = await self.GetTeamData(ctx, winnerTeam, winnerName, TeamResult.WIN)
@@ -447,7 +449,7 @@ class MatchService(object):
 		self.matchesStarted[id].StoreMatchHistoryData(winnerTeamData, loserTeamData, matchResult)
 		del self.matchesStarted[id]
 
-		await SendChannelMessage(self.botSettings.resultsChannel, title=title, description=description, fields=[winnerField, loserField], footer=footer, color=discord.Color.blue())
+		await SendChannelMessage(self.botSettings.resultsChannel, title=title, description=description, thumbnail=thumbnail, fields=[winnerField, loserField], footer=footer, color=discord.Color.blue())
 
 	def IsPlayerQueued(self, user:discord.User):
 		for player in self.queuedPlayers:

@@ -16,6 +16,9 @@ async def SendChannelMessage(channel:discord.TextChannel, **kwargs):
     if 'footer' in kwargs:
         messageEmbed.set_footer(text=kwargs['footer'])
 
+    if 'thumbnail' in kwargs:
+        messageEmbed.set_thumbnail(url=kwargs['thumbnail'])
+
     message = await channel.send(embed=messageEmbed)
 
     if 'reactions' in kwargs:

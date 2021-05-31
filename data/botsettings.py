@@ -286,14 +286,20 @@ class BotSettings(Document):
 		self.mmrRoles[role.id].delete() # remove entry from database
 		del self.mmrRoles[role.id]
 
-	def AddMap(self, name:str):
+	def AddMap(self, name:str, thumbnailURL:str):
 		_map = SiegeMap()
-		_map.SetName(name)
+		_map.SetName(name, thumbnailURL)
 		self.maps[name.lower()] = _map
 	
 	def RemoveMap(self, name:str):
 		self.maps[name.lower()].delete() # remove entry from database
 		del self.maps[name.lower()]
+
+	def SetMapThumbnail(self, name:str, thumbnailURL:str):
+		self.maps[name.lower()].SetThumbnail(thumbnailURL)
+
+	def GetMapThumbnail(self, name:str):
+		return self.maps[name.lower()].thumbnailURL
 
 	def SetMMR(self, user:discord.User, mmr:int):
 		return self.SetMMRByID(user.id, mmr)
