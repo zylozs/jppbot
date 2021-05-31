@@ -1,5 +1,7 @@
 #!/bin/sh
 
+rm -rf jppbot
+
 pip3 install mongoengine discord.py
 git clone https://github.com/zylozs/jppbot.git
 
