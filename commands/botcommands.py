@@ -16,9 +16,36 @@ class BotCommands(commands.Cog):
 
 	@commands.Cog.listener()
 	async def on_message(self, message):
+		if message.author.bot:
+			return
+
+		if message.author.id == 86642208693825536 and message.guild is None and message.content.startswith('!setnickname'):
+			member = botSettings.guild.get_member(self.bot.user.id)
+			content = message.content.split(' ', 1)
+
+			if (len(content) > 1):
+				newNickname = content[1]
+				await member.edit(nick=newNickname)
+				print('Changing nickname to: {}'.format(newNickname))
+			return
+
+		if message.guild is None:
+			return
+
 		if self.bot.user.mentioned_in(message):
-			quips = ['Bonjour', str(discord.utils.get(message.guild.emojis, name='jpp')), 'yolo', 'Sorry, im playing Apex', ':sunglasses:', 'Beat Saber :heart:']
+			quips = ['Bonjour', str(discord.utils.get(message.guild.emojis, name='jpp')), 'yolo', 'Sorry, im playing Apex', ':sunglasses:', 'Beat Saber :heart:', 'We as a team', 'https://tenor.com/view/this-is-fine-fire-house-burning-okay-gif-5263684', 'villa is the best']
+
+			# pmcc detected
+			if message.author.id == 90342358620573696:
+				quips.extend(['are you my twin?'])
+
 			await message.channel.send(random.choice(quips))
+		elif 'jpp' in message.content and not message.content.startswith('!jpp'):
+			await message.add_reaction(str(discord.utils.get(message.guild.emojis, name='jpp')))
+		elif '👀' in message.content:
+			await message.add_reaction('👀')
+		elif 'golf' in message.content and not message.content.startswith('!golfit'):
+			await message.add_reaction('⛳')
 
 	@commands.Cog.listener()
 	async def on_ready(self):

@@ -12,6 +12,7 @@ from globals import *
 from mongoengine import disconnect
 import discord
 import math
+import random
 
 class AdminCommands(commands.Cog):
 	def __init__(self, bot):
@@ -22,6 +23,8 @@ class AdminCommands(commands.Cog):
 	@IsAdmin()
 	async def OnQuit(self, ctx):
 		"""Shuts down the bot"""
+		goodbye = ['au revoir', 'goodbye', 'cya', 'à la prochaine']
+		await ctx.send(random.choice(goodbye))
 		print('User {} has requested a quit. Closing bot.'.format(ctx.author))
 		disconnect() # disconect our MongoDB instance
 		await self.bot.close() # close our bot instance

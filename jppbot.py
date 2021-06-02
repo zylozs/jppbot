@@ -40,6 +40,15 @@ bot.add_cog(AdminCommands(bot))
 bot.add_cog(BotCommands(bot))
 bot.help_command = HelpCommand()
 
+# We dont want people dming the bot to run commands
+from utils.errorutils import HandleError, NoPrivateMessages
+
+@bot.check
+async def block_dms(ctx):
+	if (ctx.guild is None):
+		raise NoPrivateMessages()
+	return ctx.guild is not None
+
 matchService.Init(bot, botSettings)
 
 bot.run(token)
