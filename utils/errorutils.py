@@ -9,6 +9,10 @@ from utils.chatutils import SendMessage
 from discord.ext import commands
 import discord
 
+class NoPrivateMessages(commands.CheckFailure):
+	def __init__(self):
+		super().__init__('You can\'t run commands in dms.')
+
 async def HandleError(ctx, error):
 	print('Error: {}'.format(error))
 	if (isinstance(error, commands.ChannelNotFound)):
@@ -88,6 +92,9 @@ async def HandleError(ctx, error):
 
 	elif (isinstance(error, EmptyName)):
 		await SendMessage(ctx, description='An empty string is not a valid name', color=discord.Color.red())
+
+	elif (isinstance(error, NoPrivateMessages)):
+		await SendMessage(ctx, description='You can\'t run commands in dms.', color=discord.Color.red())
 
 	elif (isinstance(error, commands.errors.MissingRequiredArgument)):
 		await SendMessage(ctx, description='Invalid usage: `{0.name}` is a required argument'.format(error.param), color=discord.Color.red())
