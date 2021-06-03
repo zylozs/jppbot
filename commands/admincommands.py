@@ -652,7 +652,7 @@ class AdminCommands(commands.Cog):
 			else:
 				field['value'] += '\n'
 
-			field['value'] += '[{}] **MMR:** {} {} {} = {}'.format(botSettings.GetUserNameByID(id), oldMMR, sign, delta, newMMR)
+			field['value'] += '**{}** {} {} {} = {}'.format(botSettings.GetUserNameByID(id), oldMMR, sign, delta, newMMR)
 
 			if (oldRole is not None and newRole is not None):
 				field['value'] += ' **Rank:** {0.mention} -> {1.mention}'.format(oldRole.role, newRole.role)

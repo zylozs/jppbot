@@ -32,19 +32,19 @@ class BotCommands(commands.Cog):
 		if message.guild is None:
 			return
 
-		if self.bot.user.mentioned_in(message):
-			quips = ['Bonjour', str(discord.utils.get(message.guild.emojis, name='jpp')), 'yolo', 'Sorry, im playing Apex', ':sunglasses:', 'Beat Saber :heart:', 'We as a team', 'https://tenor.com/view/this-is-fine-fire-house-burning-okay-gif-5263684', 'villa is the best']
+		if not message.mention_everyone and self.bot.user.mentioned_in(message):
+			quips = ['Bonjour', str(discord.utils.get(message.guild.emojis, name='jpp')), 'yolo', 'Sorry, im playing Apex', ':sunglasses:', 'Beat Saber :heart:', 'We as a team', 'https://tenor.com/view/this-is-fine-fire-house-burning-okay-gif-5263684', 'Villa is the best']
 
 			# pmcc detected
 			if message.author.id == 90342358620573696:
-				quips.extend(['are you my twin?'])
+				quips.extend(['Are you my twin?', 'Seems pretty sus'])
 
 			await message.channel.send(random.choice(quips))
-		elif 'jpp' in message.content and not message.content.startswith('!jpp'):
+		elif 'jpp' in message.content.lower() and not message.content.startswith('!jpp'):
 			await message.add_reaction(str(discord.utils.get(message.guild.emojis, name='jpp')))
 		elif '👀' in message.content:
 			await message.add_reaction('👀')
-		elif 'golf' in message.content and not message.content.startswith('!golfit'):
+		elif 'golf' in message.content.lower() and not message.content.startswith('!golfit'):
 			await message.add_reaction('⛳')
 
 	@commands.Cog.listener()
@@ -286,21 +286,21 @@ class BotCommands(commands.Cog):
 		description = '**Rank:** {0.mention}\n'.format(currentRole.role)
 		description += '**MMR:** {}\n'.format(player.mmr)
 		description += '**Matches Played:** {}\n'.format(player.matchesPlayed)
-		description += '**Win/Loss:** {}/{} ({}, {:.2f}%)\n'.format(player.wins, player.loses, wlDelta, winLossPercent)
+		description += '**Win/Loss:** {}/{} ({}, {:.2f}%)\n'.format(player.wins, player.loses, wlDelta, winLossPercent * 100)
 
 		if (bestMap is not None):
 			bestMapDelta = bestMap[0] - bestMap[1]
 			numPlayed = bestMap[0] + bestMap[1]
 			bestMapWinLossPercent = bestMap[0] / (1 if numPlayed == 0 else numPlayed)
 			bmDelta = '{}{}'.format('+' if bestMapDelta >= 0 else '-', abs(bestMapDelta))
-			description += '**Best Map:** {} ({}, {:.2f}%)\n'.format(bestMap[2], bmDelta, bestMapWinLossPercent)
+			description += '**Best Map:** {} ({}, {:.2f}%)\n'.format(bestMap[2], bmDelta, bestMapWinLossPercent * 100)
 
 		if (worstMap is not None):
 			worstMapDelta = worstMap[0] - worstMap[1]
 			numPlayed = worstMap[0] + worstMap[1]
 			worstMapWinLossPercent = worstMap[0] / (1 if numPlayed == 0 else numPlayed)
 			wmDelta = '{}{}'.format('+' if worstMapDelta >= 0 else '-', abs(worstMapDelta))
-			description += '**Worst Map:** {} ({}, {:.2f}%)'.format(worstMap[2], wmDelta, worstMapWinLossPercent)
+			description += '**Worst Map:** {} ({}, {:.2f}%)'.format(worstMap[2], wmDelta, worstMapWinLossPercent * 100)
 
 		await SendMessage(ctx, title=title, description=description, color=discord.Color.blue())
 

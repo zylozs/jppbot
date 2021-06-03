@@ -30,7 +30,7 @@ class QueuedPlayer(object):
 		self.mmr = mmr
 
 	def __eq__(self, other):
-		return self.user is other
+		return self.user.id == other.id
 
 class Match(object):
 	team1 = []
@@ -405,7 +405,7 @@ class MatchService(object):
 
 				sign = '+' if result == TeamResult.WIN else '-'
 
-				teamField['value'] += '[{}] **MMR:** {} {} {} = {}'.format(self.botSettings.GetUserName(player.user), oldMMR, sign, delta, newMMR)
+				teamField['value'] += '**{}** {} {} {} = {}'.format(self.botSettings.GetUserName(player.user), oldMMR, sign, delta, newMMR)
 
 				if (oldRole is not None and newRole is not None):
 					teamField['value'] += ' **Rank:** {0.mention} -> {1.mention}'.format(oldRole.role, newRole.role)
