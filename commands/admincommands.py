@@ -652,7 +652,7 @@ class AdminCommands(commands.Cog):
 			else:
 				field['value'] += '\n'
 
-			field['value'] += '[{}] **MMR:** {} {} {} = {}'.format(botSettings.GetUserNameByID(id), oldMMR, sign, delta, newMMR)
+			field['value'] += '**{}** {} {} {} = {}'.format(botSettings.GetUserNameByID(id), oldMMR, sign, delta, newMMR)
 
 			if (oldRole is not None and newRole is not None):
 				field['value'] += ' **Rank:** {0.mention} -> {1.mention}'.format(oldRole.role, newRole.role)
@@ -679,15 +679,14 @@ class AdminCommands(commands.Cog):
 			team1NewResult = TeamResult.CANCEL
 			team2NewResult = TeamResult.CANCEL
 
-		team1Field = GetTeamField(team1Name, team1PrevResult)
-		team2Field = GetTeamField(team2Name, team2PrevResult)
+		team1Field = GetTeamField(team1Name, team1NewResult)
+		team2Field = GetTeamField(team2Name, team2NewResult)
 
 		isFirst = True
 		for player in match._team1:
-			oldDelta = int(abs(player._newMMR - player._prevMMR))
-			oldMMR, newMMR, oldRole, newRole = botSettings.RedoMatchByID(player._id, oldDelta, player._mmrDelta, team1PrevResult, team1NewResult)
-			player._prevMMR = oldMMR
-			player._newMMR = newMMR
+			oldDelta = int(player._newMMR - player._prevMMR)
+			oldMMR, newMMR, oldRole, newRole = botSettings.RedoMatchByID(player._id, abs(oldDelta), player._mmrDelta, team1PrevResult, team1NewResult)
+			player._newMMR = player._prevMMR - oldDelta
 			delta = int(abs(newMMR - oldMMR))
 
 			players.append(player._id)
@@ -698,10 +697,9 @@ class AdminCommands(commands.Cog):
 			
 		isFirst = True
 		for player in match._team2:
-			oldDelta = int(abs(player._newMMR - player._prevMMR))
-			oldMMR, newMMR, oldRole, newRole = botSettings.RedoMatchByID(player._id, oldDelta, player._mmrDelta, team2PrevResult, team2NewResult)
-			player._prevMMR = oldMMR
-			player._newMMR = newMMR
+			oldDelta = int(player._newMMR - player._prevMMR)
+			oldMMR, newMMR, oldRole, newRole = botSettings.RedoMatchByID(player._id, abs(oldDelta), player._mmrDelta, team2PrevResult, team2NewResult)
+			player._newMMR = player._prevMMR - oldDelta
 			delta = int(abs(newMMR - oldMMR))
 
 			players.append(player._id)
