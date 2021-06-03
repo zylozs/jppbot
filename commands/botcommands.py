@@ -285,6 +285,7 @@ class BotCommands(commands.Cog):
 		title = 'Stats for {}'.format(player.name)
 		description = '**Rank:** {0.mention}\n'.format(currentRole.role)
 		description += '**MMR:** {}\n'.format(player.mmr)
+		description += '**Highest/Lowest:** {}/{}\n'.format(player.highestMMR, player.lowestMMR)
 		description += '**Matches Played:** {}\n'.format(player.matchesPlayed)
 		description += '**Win/Loss:** {}/{} ({}, {:.2f}%)\n'.format(player.wins, player.loses, wlDelta, winLossPercent * 100)
 
