@@ -210,6 +210,12 @@ class MatchService(object):
 
 		await SendMessage(ctx, description=description, color=discord.Color.blue())
 
+	def UpdateMMR(self, user:discord.Member, mmr:int):
+		for player in self.queuedPlayers:
+			if (player == user):
+				player.mmr = mmr
+				break;
+
 	async def ForceMap(self, ctx, map):
 		if (len(self.matchesStarted) > 0):
 			key = list(self.matchesStarted.keys())[0]

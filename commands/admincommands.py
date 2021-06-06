@@ -420,6 +420,8 @@ class AdminCommands(commands.Cog):
 		elif (previousRole is not None and newRole is not None):
 			field['value'] += '\nRank: {0.mention} -> {1.mention}'.format(previousRole.role, newRole.role)
 
+		matchService.UpdateMMR(member, mmr)
+
 		await SendMessage(ctx, fields=[field], color=discord.Color.blue())
 
 	@commands.command(name='refreshuser')
