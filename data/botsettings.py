@@ -1,7 +1,7 @@
 from data.playerdata import PlayerData
 from data.mmrrole import MMRRole 
 from data.matchhistorydata import MatchHistoryData
-from services.matchservice import TeamResult
+from services.matchservice import TeamResult, FakeUser
 from data.siegemap import SiegeMap
 from enum import Enum
 from discord.ext import commands
@@ -374,10 +374,18 @@ class BotSettings(Document):
 	def GetSortedMaps(self):
 		return sorted(self.maps.values(), key=lambda _map : _map.name.lower())
 
-	def GetUserName(self, user:discord.User):
+	# Union[discord.User, FakeUser] user
+	def GetUserName(self, user):
+		if (isinstance(user, FakeUser)):
+			return user.mention
+
 		return self.GetUserNameByID(user.id)
 
 	def GetUserNameByID(self, id:int):
+		# Fake user detected
+		if (id < 0):
+			return self.GetUserName(FakeUser(id))
+
 		return self.registeredPlayers[id].name
 
 	def IsUserRegistered(self, user:discord.User):
@@ -437,7 +445,12 @@ class BotSettings(Document):
 	def DeclareMapPlayed(self, mapName:str):
 		self.maps[mapName.lower()].IncrementTimesPlayed()
 
-	def DeclareWinner(self, user:discord.User, mmrDelta=None):
+	# Union[discord.User, FakeUser] user
+	def DeclareWinner(self, user, mmrDelta=None):
+		# Fake the results for FakeUsers
+		if (isinstance(user, FakeUser)):
+			return 100, 110, None, None, 10
+
 		return self.DeclareWinnerByID(user.id, mmrDelta)
 
 	def DeclareWinnerByID(self, id:int, mmrDelta=None):
@@ -461,7 +474,12 @@ class BotSettings(Document):
 
 		return oldMMR, newMMR, oldRole, newRole, mmrDelta
 
-	def DeclareLoser(self, user:discord.User, mmrDelta=None):
+	# Union[discord.User, FakeUser] user
+	def DeclareLoser(self, user, mmrDelta=None):
+		# Fake the results for FakeUsers
+		if (isinstance(user, FakeUser)):
+			return 100, 90, None, None, 10
+
 		return self.DeclareLoserByID(user.id, mmrDelta)
 
 	def DeclareLoserByID(self, id:int, mmrDelta=None):
@@ -485,7 +503,12 @@ class BotSettings(Document):
 
 		return oldMMR, newMMR, oldRole, newRole, mmrDelta
 
-	def DeclareCancel(self, user:discord.User):
+	# Union[discord.User, FakeUser] user
+	def DeclareCancel(self, user):
+		# Fake the results for FakeUsers
+		if (isinstance(user, FakeUser)):
+			return 100, 100, 10
+
 		return self.DeclareCancelByID(user.id)
 
 	def DeclareCancelByID(self, id:int):
@@ -500,10 +523,18 @@ class BotSettings(Document):
 
 		return oldMMR, newMMR, mmrDelta
 
-	def RedoMatch(self, user:discord.User, oldDelta:int, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
+	# Union[discord.User, FakeUser] user
+	def RedoMatch(self, user, oldDelta:int, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
+		if (isinstance(user, FakeUser)):
+			return 100, 110, None, None
+
 		return self.RedoMatchByID(user.id, oldDelta, mmrDelta, prevResult, newResult)
 
 	def RedoMatchByID(self, id:int, oldDelta:int, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
+		# Fake user detected
+		if (id < 0):
+			return self.RedoMatch(FakeUser(id), oldDelta, mmrDelta, prevResult, newResult)
+
 		oldMMR = self.GetMMRByID(id)
 
 		self.registeredPlayers[id].RedoData(oldDelta, mmrDelta, prevResult, newResult)

@@ -32,6 +32,14 @@ class QueuedPlayer(object):
 	def __eq__(self, other):
 		return self.user.id == other.id
 
+class FakeUser(object):
+	id = 0
+	mention = ''
+
+	def __init__(self, id):
+		self.id = id
+		self.mention = '<Fake User: {}>'.format(id)
+
 class Match(object):
 	team1 = []
 	team2 = []
@@ -137,7 +145,7 @@ class MatchService(object):
 		await SendMessage(ctx, description=description, color=discord.Color.blue())
 
 		if (numPlayers == 10):
-			await self.StartMatch(ctx)
+			await self.StartMatch(ctx, False)
 
 	async def LeaveQueue(self, ctx, user:discord.Member):
 		mmr = 0
@@ -233,7 +241,14 @@ class MatchService(object):
 		else:
 			await SendMessage(ctx, description='You can only reroll a map when there is a match running.', color=discord.Color.red())
 
-	async def StartMatch(self, ctx):
+	async def StartMatch(self, ctx, fillWithFakePlayers:bool):
+		if (fillWithFakePlayers and len(self.queuedPlayers) < 10):
+			# Use negative ids so that we know its fake
+			fakeID = -1
+			while (len(self.queuedPlayers) < 10):
+				self.queuedPlayers.append(QueuedPlayer(FakeUser(fakeID), 100))
+				fakeID -= 1
+
 		# Check for PMCC override
 		enablePMCCOverride = False
 
@@ -358,7 +373,11 @@ class MatchService(object):
 		else:
 			print('Something has gone very wrong here')
 
-	async def UpdateRoles(self, ctx, member:discord.Member, oldRole, newRole):
+	# Union[discord.Member, FakeUser] member 
+	async def UpdateRoles(self, ctx, member, oldRole, newRole):
+		if (isinstance(member, FakeUser)):
+			return
+
 		if (oldRole is not None):
 			try:
 				await member.remove_roles(oldRole.role, reason='Match service is updating MMR Role for {}'.format(member))
