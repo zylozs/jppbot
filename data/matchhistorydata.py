@@ -56,6 +56,11 @@ class MatchHistoryPlayerData(EmbeddedDocument):
 	_newMMR = IntField(default=0)
 	_mmrDelta = IntField(default=0)
 
+	def __eq__(self, other):
+		if (isinstance(other, int)):
+			return self._id == other
+		return super().__eq__(other)
+
 class MatchHistoryData(Document):
 	# Database fields.  Dont modify or access directly, use the non underscore versions
 	_team1 = ListField(EmbeddedDocumentField(MatchHistoryPlayerData), max_length=5)

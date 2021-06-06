@@ -174,4 +174,12 @@ class PlayerData(Document):
 		self._highestMMR = self.highestMMR
 		self.save()
 
+	def GetStreak(self):
+		if (self.winStreak > self.loseStreak):
+			return 'Win Streak', '(+{})'.format(self.winStreak)
+		elif (self.loseStreak > self.winStreak):
+			return 'Lose Streak', '(-{})'.format(self.loseStreak)
+
+		return 'None', ''
+
 

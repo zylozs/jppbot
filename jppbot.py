@@ -35,6 +35,7 @@ import discord
 intents = discord.Intents.default()
 intents.members = True
 intents.voice_states = True
+intents.guilds = True
 bot = commands.Bot(command_prefix='!', description='A bot to host the weekly JPP sessions.', intents=intents)
 bot.add_cog(AdminCommands(bot))
 bot.add_cog(BotCommands(bot))

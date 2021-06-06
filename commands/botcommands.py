@@ -242,19 +242,63 @@ class BotCommands(commands.Cog):
 		player = botSettings.GetRegisteredPlayerByID(ctx.author.id)
 		prevRole, currentRole = botSettings.GetMMRRole(ctx.author)
 
+		class DummyObject(object) : pass
+
 		results = {}
+		players = {}
 
-		def AddWin(map:str):
+		def AddMapWin(map:str):
 			if (map not in results):
-				results[map] = [1, 0, map]
+				dummy = DummyObject()
+				dummy.wins = 1
+				dummy.loses = 0
+				dummy.name = map
+				results[map] = dummy
 			else:
-				results[map][0] += 1
+				results[map].wins += 1
 
-		def AddLoss(map:str):
+		def AddMapLoss(map:str):
 			if (map not in results):
-				results[map] = [0, 1, map]
+				dummy = DummyObject()
+				dummy.wins = 0
+				dummy.loses = 1
+				dummy.name = map
+				results[map] = dummy
 			else:
-				results[map][1] += 1
+				results[map].loses += 1
+
+		def RegisterPlayer(player:int):
+			if (player not in players):
+				dummy = DummyObject()
+				dummy.winsWith = 0
+				dummy.lossesWith = 0
+				dummy.winsAgainst = 0
+				dummy.lossesAgainst = 0
+				dummy.id = player
+				players[player] = dummy
+
+		def AddPlayerStats(myTeam, enemyTeam, isWin):
+			for player in myTeam:
+				RegisterPlayer(player._id)
+
+				if isWin:
+					players[player._id].winsWith += 1
+				else:
+					players[player._id].lossesWith += 1
+
+			for player in enemyTeam:
+				RegisterPlayer(player._id)
+
+				if isWin:
+					players[player._id].winsAgainst += 1
+				else:
+					players[player._id].lossesAgainst += 1
+
+
+			#if (player in winningTeam):
+				#players[player].
+
+		# TODO: Calculate how many times we played with each player so we can do player stats
 
 		team1Matches = MatchHistoryData.objects(_team1__match={'_id':ctx.author.id}) 
 		team2Matches = MatchHistoryData.objects(_team2__match={'_id':ctx.author.id})
@@ -264,46 +308,124 @@ class BotCommands(commands.Cog):
 				if (data._result == MatchResult.CANCELLED.value):
 					continue
 
+				if (winResult == MatchResult.TEAM1VICTORY.value):
+					AddPlayerStats(data._team1, data._team2, (data._result == winResult))
+				elif (winResult == MatchResult.TEAM2VICTORY.value):
+					AddPlayerStats(data._team2, data._team1, (data._result == winResult))
+
 				if (data._result == winResult):
-					AddWin(data._map)
+					AddMapWin(data._map)
 				elif (data._result == loseResult):
-					AddLoss(data._map)
+					AddMapLoss(data._map)
 
 		CheckResults(team1Matches, MatchResult.TEAM1VICTORY.value, MatchResult.TEAM2VICTORY.value)
-		CheckResults(team2Matches, MatchResult.TEAM2VICTORY.value, MatchResult.TEAM1VICTORY.value)
-	
-		bestMaps = sorted(results.values(), key=lambda map : map[0], reverse=True)
-		worstMaps = sorted(results.values(), key=lambda map : map[1], reverse=True)
+		CheckResults(team2Matches, MatchResult.TEAM2VICTORY.value, MatchResult.TEAM1VICTORY.value)	
 
-		bestMap = bestMaps[0] if len(bestMaps) > 0 else None
-		worstMap = worstMaps[0] if len(worstMaps) > 0 else None
+		title = 'Stats for {}'.format(player.name)
+
+		mmrField = {}
+		mmrField['name'] = 'MMR'
+		mmrField['inline'] = True
+
+		mmrField['value'] = '**Rank:** {0.mention}\n'.format(currentRole.role)
+		mmrField['value'] += '**MMR:** {}\n'.format(player.mmr)
+		mmrField['value'] += '**Highest MMR:** {}\n'.format(player.highestMMR)
+		mmrField['value'] += '**Lowest MMR:** {}\n'.format(player.lowestMMR)
 
 		winLossDelta = player.wins - player.loses
 		winLossPercent = player.wins / (1 if player.matchesPlayed == 0 else player.matchesPlayed)
 		wlDelta = '{}{}'.format('+' if winLossDelta >= 0 else '-', abs(winLossDelta))
 
-		title = 'Stats for {}'.format(player.name)
-		description = '**Rank:** {0.mention}\n'.format(currentRole.role)
-		description += '**MMR:** {}\n'.format(player.mmr)
-		description += '**Highest/Lowest:** {}/{}\n'.format(player.highestMMR, player.lowestMMR)
-		description += '**Matches Played:** {}\n'.format(player.matchesPlayed)
-		description += '**Win/Loss:** {}/{} ({}, {:.2f}%)\n'.format(player.wins, player.loses, wlDelta, winLossPercent * 100)
+		matchField = {}
+		matchField['name'] = 'Match History'
+		matchField['inline'] = True
+
+		matchField['value'] = '**Matches Played:** {}\n'.format(player.matchesPlayed)
+		matchField['value'] += '**Win/Loss:** {}/{} ({}, {:.2f}%)\n'.format(player.wins, player.loses, wlDelta, winLossPercent * 100)
+
+		streakName, streakValue = player.GetStreak()
+
+		matchField['value'] += '**Current Streak:** {} {}\n'.format(streakName, streakValue)
+		matchField['value'] += '**Best Win Streak:** {}\n'.format(player.highestWinStreak)
+		matchField['value'] += '**Worst Lose Streak:** {}\n'.format(player.highestLoseStreak)
+
+		bestMaps = sorted(results.values(), key=lambda map : map.wins, reverse=True)
+		worstMaps = sorted(results.values(), key=lambda map : map.loses, reverse=True)
+		mostPlayedMaps = sorted(results.values(), key=lambda map : map.wins + map.loses, reverse=True)
+
+		bestMap = bestMaps[0] if len(bestMaps) > 0 else None
+		worstMap = worstMaps[0] if len(worstMaps) > 0 else None
+		mostPlayedMap = mostPlayedMaps[0] if len(mostPlayedMaps) > 0 else None
+		leastPlayedMap = mostPlayedMaps[-1] if len(mostPlayedMaps) > 0 else None
+
+		mapField = {}
+		mapField['name'] = 'Map History'
+		mapField['value'] = ''
+		mapField['inline'] = True
+
+		if (mostPlayedMap is not None):
+			numPlayed = mostPlayedMap.wins + mostPlayedMap.loses
+			mapField['value'] += '**Most Played Map:** {} ({})\n'.format(mostPlayedMap.name, numPlayed)
+
+		if (leastPlayedMap is not None):
+			numPlayed = leastPlayedMap.wins + leastPlayedMap.loses
+			mapField['value'] += '**Least Played Map:** {} ({})\n'.format(leastPlayedMap.name, numPlayed)
 
 		if (bestMap is not None):
-			bestMapDelta = bestMap[0] - bestMap[1]
-			numPlayed = bestMap[0] + bestMap[1]
-			bestMapWinLossPercent = bestMap[0] / (1 if numPlayed == 0 else numPlayed)
+			bestMapDelta = bestMap.wins - bestMap.loses
+			numPlayed = bestMap.wins + bestMap.loses
+			bestMapWinLossPercent = bestMap.wins / (1 if numPlayed == 0 else numPlayed)
 			bmDelta = '{}{}'.format('+' if bestMapDelta >= 0 else '-', abs(bestMapDelta))
-			description += '**Best Map:** {} ({}, {:.2f}%)\n'.format(bestMap[2], bmDelta, bestMapWinLossPercent * 100)
+			mapField['value'] += '**Best Map:** {} ({}, {:.2f}%)\n'.format(bestMap.name, bmDelta, bestMapWinLossPercent * 100)
 
 		if (worstMap is not None):
-			worstMapDelta = worstMap[0] - worstMap[1]
-			numPlayed = worstMap[0] + worstMap[1]
-			worstMapWinLossPercent = worstMap[0] / (1 if numPlayed == 0 else numPlayed)
+			worstMapDelta = worstMap.wins - worstMap.loses
+			numPlayed = worstMap.wins + worstMap.loses
+			worstMapWinLossPercent = worstMap.wins / (1 if numPlayed == 0 else numPlayed)
 			wmDelta = '{}{}'.format('+' if worstMapDelta >= 0 else '-', abs(worstMapDelta))
-			description += '**Worst Map:** {} ({}, {:.2f}%)'.format(worstMap[2], wmDelta, worstMapWinLossPercent * 100)
+			mapField['value'] += '**Worst Map:** {} ({}, {:.2f}%)'.format(worstMap.name, wmDelta, worstMapWinLossPercent * 100)
 
-		await SendMessage(ctx, title=title, description=description, color=discord.Color.blue())
+		# We dont want data about ourself messing with the results
+		if ctx.author.id in players:
+			del players[ctx.author.id]
+
+		mostPlayedPlayers = sorted(players.values(), key=lambda player: player.winsWith + player.lossesWith, reverse=True)
+		bestPlayers = sorted(players.values(), key=lambda player: player.winsWith, reverse=True)
+		worstPlayers = sorted(players.values(), key=lambda player: player.lossesWith, reverse=True)
+		rivalPlayers = sorted(players.values(), key=lambda player: player.lossesAgainst, reverse=True)
+
+		mostPlayedPlayer = mostPlayedPlayers[0] if len(mostPlayedPlayers) > 0 else None
+		leastPlayedPlayer = mostPlayedPlayers[-1] if len(mostPlayedPlayers) > 0 else None
+		bestPlayer = bestPlayers[0] if len(bestPlayers) > 0 else None
+		worstPlayer = worstPlayers[0] if len(worstPlayers) > 0 else None
+		rivalPlayer = rivalPlayers[0] if len(rivalPlayers) > 0 else None
+
+		playerField = {}
+		playerField['name'] = 'Player History'
+		playerField['value'] = ''
+		playerField['inline'] = True
+
+		if (mostPlayedPlayer is not None):
+			numPlayed = mostPlayedPlayer.winsWith + mostPlayedPlayer.lossesWith
+			playerField['value'] += '**Played with most:** {} ({} times)\n'.format(botSettings.GetUserNameByID(mostPlayedPlayer.id), numPlayed)
+
+		if (leastPlayedPlayer is not None):
+			numPlayed = leastPlayedPlayer.winsWith + leastPlayedPlayer.lossesWith
+			playerField['value'] += '**Played with least:** {} ({} times)\n'.format(botSettings.GetUserNameByID(leastPlayedPlayer.id), numPlayed)
+			
+		if (bestPlayer is not None):
+			numPlayed = bestPlayer.winsWith
+			playerField['value'] += '**Carried by:** {} ({} wins with)\n'.format(botSettings.GetUserNameByID(bestPlayer.id), numPlayed)
+
+		if (worstPlayer is not None):
+			numPlayed = worstPlayer.lossesWith
+			playerField['value'] += '**Sabotaged by:** {} ({} losses with)\n'.format(botSettings.GetUserNameByID(worstPlayer.id), numPlayed)
+
+		if (rivalPlayer is not None):
+			numPlayed = rivalPlayer.lossesAgainst
+			playerField['value'] += '**Rival:** {} ({} losses to)\n'.format(botSettings.GetUserNameByID(rivalPlayer.id), numPlayed)
+
+		await SendMessage(ctx, title=title, fields=[mmrField, matchField, mapField, playerField], color=discord.Color.blue())
 
 	@OnJPP.error
 	@OnWhenDoesBeauloPlay.error

@@ -104,11 +104,15 @@ class AdminCommands(commands.Cog):
 	@commands.command(name='forcestartmatch')
 	@IsValidChannel(ChannelType.LOBBY)
 	@IsAdmin()
-	async def OnForceStartMatch(self, ctx):
-		"""Starts the match"""
+	async def OnForceStartMatch(self, ctx, fillWithFakePlayers:bool = False):
+		"""Starts the match
+		
+		   **bool:** <fillWithFakePlayers>
+		   Fills the lobby with fake players. This is useful for testing bot functionality without having 10 players. **DO NOT USE IN A REAL MATCH**
+		"""
 		print('{} is force starting the match'.format(ctx.author))
 
-		await matchService.StartMatch(ctx)
+		await matchService.StartMatch(ctx, fillWithFakePlayers)
 
 	@commands.command(name='clearchannel')
 	@IsValidChannel(ChannelType.ADMIN)
@@ -415,6 +419,8 @@ class AdminCommands(commands.Cog):
 			field['value'] += '\nRank: {0.mention}'.format(newRole.role)
 		elif (previousRole is not None and newRole is not None):
 			field['value'] += '\nRank: {0.mention} -> {1.mention}'.format(previousRole.role, newRole.role)
+
+		matchService.UpdateMMR(member, mmr)
 
 		await SendMessage(ctx, fields=[field], color=discord.Color.blue())
 
@@ -728,6 +734,10 @@ class AdminCommands(commands.Cog):
 			raise NoMMRRoles()
 
 		for player in players:
+			# FakeUser detected
+			if (player < 0):
+				continue
+
 			member = botSettings.guild.get_member(player)
 
 			# Just ignore users who aren't in the guild
