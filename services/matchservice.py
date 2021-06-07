@@ -342,6 +342,8 @@ class MatchService(object):
 		self.matchesStarted[id] = Match(id, team1, team2, selectedMap, creationTime)
 		self.queuedPlayers.clear()
 
+		await ctx.bot.change_presence(activity=discord.Game(name='on {}'.format(selectedMap)))
+
 		adminField = {}
 		adminField['name'] = 'Report the result!'
 		adminField['value'] = 'Team Blue Win :blue_square:\nTeam Orange Win :orange_square:\nCancelled :negative_squared_cross_mark:'
@@ -455,6 +457,8 @@ class MatchService(object):
 		thumbnail = self.botSettings.GetMapThumbnail(self.matchesStarted[id].map)
 
 		winnerTeam, winnerName, loserTeam, loserName = self.matchesStarted[id].GetTeamAndNames(matchResult)
+
+		await ctx.bot.change_presence(activity=None)
 
 		if (matchResult == MatchResult.CANCELLED):
 			description += '\n\nThis match has been cancelled.'

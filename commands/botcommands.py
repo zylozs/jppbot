@@ -6,13 +6,53 @@ from utils.chatutils import SendMessage
 from utils.botutils import IsValidChannel
 from utils.errorutils import HandleError
 from globals import *
-from discord.ext import commands
+from discord.ext import commands, tasks
+from datetime import datetime
 import discord
 import random
 
 class BotCommands(commands.Cog):
 	def __init__(self, bot):
 		self.bot = bot
+
+	def cog_unload(self):
+		self.OnUpdateStatus.cancel()
+		return super().cog_unload()
+
+	@tasks.loop(minutes=30)
+	async def OnUpdateStatus(self):
+		print('Changing status!')
+		gameOptions = ['Apex Legends', 'Beat Saber', 'Golf It!', 'Rainbow Six Siege']
+		watchingOptions = ['Beaulo play', 'NA League', 'EU League', 'LATAM League', 'APAC League']
+		listeningOptions = ['Golf It! music', 'JPP Lo-Fi']
+
+		# Dont override matchmaking
+		if (len(matchService.matchesStarted) > 0):
+			return
+
+		# Golfit session time
+		now = datetime.now()
+		day = now.weekday() # 1 == Tuesday
+		hour = now.hour
+		if (day == 1 and hour > 15 and hour < 18):
+			await self.bot.change_presence(activity=discord.Game('Golf It!'))
+			return
+
+		randomActivity = random.randint(0, 5)
+		# Do nothing half of the time
+		if (randomActivity >= 0 and randomActivity < 3):
+			await self.bot.change_presence(activity=None)
+		# Pick something to watch
+		elif (randomActivity == 3):
+			activity = discord.Activity(name=random.choice(watchingOptions), type=discord.ActivityType.watching)
+			await self.bot.change_presence(activity=activity)
+		# Pick a game!
+		elif (randomActivity == 4):
+			await self.bot.change_presence(activity=discord.Game(random.choice(gameOptions)))
+		# Pick something to listen to
+		elif (randomActivity == 5):
+			activity = discord.Activity(name=random.choice(listeningOptions), type=discord.ActivityType.listening)
+			await self.bot.change_presence(activity=activity)
 
 	@commands.Cog.listener()
 	async def on_message(self, message):
@@ -51,6 +91,7 @@ class BotCommands(commands.Cog):
 	async def on_ready(self):
 		print('We have logged in as {0.user}'.format(self.bot))
 		await botSettings.InitSettings(self.bot)
+		self.OnUpdateStatus.start()
 
 	@commands.command(name='jpp')
 	async def OnJPP(self, ctx):
@@ -439,5 +480,6 @@ class BotCommands(commands.Cog):
 	@OnShowMaps.error
 	@OnShowStats.error
 	@OnGolfIt.error
+	@OnUpdateStatus.error
 	async def errorHandling(self, ctx, error):
 		await HandleError(ctx, error)
