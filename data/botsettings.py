@@ -144,7 +144,7 @@ class BotSettings(Document):
 		
 		for player in PlayerData.objects:
 			await player.Init(bot)
-			self.registeredPlayers[player.user.id] = player
+			self.registeredPlayers[player.GetID()] = player
 
 		self.registeredRole = self._GetRole(self._registeredRole)
 		self.adminRole = self._GetRole(self._adminRole)

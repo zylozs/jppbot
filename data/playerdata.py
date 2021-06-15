@@ -182,4 +182,10 @@ class PlayerData(Document):
 
 		return 'None', ''
 
+	def GetID(self):
+		if (self.user is None):
+			return self._user
+
+		return self.user.id
+
 

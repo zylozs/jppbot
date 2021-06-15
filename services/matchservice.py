@@ -16,10 +16,28 @@ class PlayerNotQueued(commands.BadArgument):
 		self.argument = argument
 		super().__init__('Player {0.mention} is not currently queued.'.format(argument))
 
+class PlayerNotQueuedOrInGame(commands.BadArgument):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('Player {0.mention} is not currently queued or in a match.'.format(argument))
+
 class InvalidMatchID(commands.BadArgument):
 	def __init__(self, argument):
 		self.argument = argument
 		super().__init__('{} is not a valid match id.'.format(argument))
+
+class PlayersNotSwapable(commands.BadArgument):
+	def __init__(self, arg1, arg2):
+		self.arg1 = arg1
+		self.arg2 = arg2
+		super().__init__('Player {0.mention} is not swapable with Player {1.mention}'.format(arg1, arg2))
+
+class PlayerSwapFailed(commands.BadArgument):
+	def __init__(self, arg1, arg2):
+		self.arg1 = arg1
+		self.arg2 = arg2
+		super().__init__('Failed to find both Player {0.mention} and Player {1.mention} the queue/start matches.'.format(arg1, arg2))
+
 
 class QueuedPlayer(object):
 	user = None
@@ -30,6 +48,8 @@ class QueuedPlayer(object):
 		self.mmr = mmr
 
 	def __eq__(self, other):
+		if (other == None):
+			return self.user == None
 		return self.user.id == other.id
 
 class FakeUser(object):
@@ -47,17 +67,20 @@ class Match(object):
 	map = ''
 	creationTime = ''
 	uniqueID = 0
+	matchMessage = None
+	adminMessage = None
 
-	def __init__(self, id, team1, team2, map, creationTime):
+	def __init__(self, id, players, map, creationTime):
 		self.uniqueID = id
-		self.team1 = team1
-		self.team2 = team2
 		self.map = map
 		self.creationTime = creationTime
+		self.players = players.copy()
 
-		self.players = []
-		self.players.extend(team1)
-		self.players.extend(team2)
+	def IsPlayerInMatch(self, user:discord.User):
+		for player in self.players:
+			if (player == user):
+				return True
+		return False
 
 	def GetTeamAndNames(self, result:MatchResult):
 		team1Name = 'Blue :blue_square:'
@@ -77,6 +100,59 @@ class Match(object):
 			data.StoreData(winnerTeamData, loserTeamData, result, self.map, self.creationTime, self.uniqueID)
 		elif (result == MatchResult.TEAM2VICTORY):
 			data.StoreData(loserTeamData, winnerTeamData, result, self.map, self.creationTime, self.uniqueID)
+
+	def RemovePlayer(self, user:discord.User):
+		for i in range(len(self.team1)):
+			if (self.team1[i] == user):
+				self.team1.pop(i)
+				break
+
+		for i in range(len(self.team2)):
+			if (self.team2[i] == user):
+				self.team2.pop(i)
+				break
+
+		for i in range(len(self.players)):
+			if (self.players[i] == user):
+				self.players.pop(i)
+				break
+
+	def AddPlayer(self, player):
+		self.players.append(player)
+
+	def BalanceTeams(self):
+		team1 = []
+		team2 = []
+
+		numPlayers = len(self.players)
+		team1Size = int(numPlayers / 2)
+		team2Size = int(numPlayers - team1Size)
+		minDiff = 2147483647
+
+		def SumMMR(players):
+			sum = 0
+			for player in players:
+				sum += player.mmr
+			return sum
+
+		for i in range(10):
+			tempList = self.players.copy()
+			random.shuffle(tempList) 
+
+			tempT1 = tempList[:team1Size]
+			tempT2 = tempList[team1Size:]
+
+			team1Sum = SumMMR(tempT1)
+			team2Sum = SumMMR(tempT2)
+
+			diff = abs(team1Sum - team2Sum)
+			if (diff < minDiff):
+				team1 = tempT1
+				team2 = tempT2
+				minDiff = diff
+
+		self.team1 = team1
+		self.team2 = team2
 
 class InvalidTeamResult(commands.BadArgument):
 	def __init__(self, argument):
@@ -107,10 +183,15 @@ class TeamResult(Enum):
 
 class MatchService(object):
 	queuedPlayers = []
+	recentlySwappedMatches = []
 	matchesStarted = {}
 	bot = None
 	botSettings = None
 	forcedMap = None
+
+	# To get these to work, you need to get the <:emoji_name:emoji_id>. The easiest way to do that is to type this into discord
+	# and copy what it gives you in the message: \:YourEmoji:
+	reactions = ['🟦', '🟧', '❎']
 
 	def Init(self, bot, botSettings):
 		self.bot = bot
@@ -210,6 +291,77 @@ class MatchService(object):
 
 		await SendMessage(ctx, description=description, color=discord.Color.blue())
 
+	async def SwapPlayers(self, ctx, user1, user2):
+		# TODO: test this, make sure deleting the old match message doesn't cause issue
+		# Re-test the match starting functionality. I rewrote some of it 
+
+		# Figure out who is in queue and who is in a match first
+		queuedPlayer = None
+		matchPlayer = None
+		matchID = -1
+
+		# Find the queued player
+		for player in self.queuedPlayers:
+			if (player == user1 or player == user2):
+				queuedPlayer = player
+				break
+
+		# Find the match player
+		for match in self.matchesStarted.values():
+			if (match.IsPlayerInMatch(user1)):
+				matchPlayer = user1
+				matchID = match.uniqueID
+				break
+			elif (match.IsPlayerInMatch(user2)):
+				matchPlayer = user2
+				matchID = match.uniqueID
+				break
+
+		if (queuedPlayer == None or matchPlayer == None or matchID == -1):
+			raise PlayerSwapFailed(user1, user2)
+
+		# Delete the old message
+		try:
+			await self.matchesStarted[matchID].matchMessage.delete()
+		except:
+			pass
+
+		try:
+			await self.matchesStarted[matchID].adminMessage.delete()
+		except:
+			pass
+
+		self.matchesStarted[matchID].matchMessage = None
+		self.matchesStarted[matchID].adminMessage = None
+		self.recentlySwappedMatches.append(matchID)
+
+		# Remove the queued player
+		mmr = 0
+		for i in range(len(self.queuedPlayers)):
+			if (self.queuedPlayers[i] == queuedPlayer.user):
+				mmr = self.queuedPlayers[i].mmr
+				self.queuedPlayers.pop(i)
+				break
+
+		# Remove the match player
+		self.matchesStarted[matchID].RemovePlayer(matchPlayer)
+
+		# Add match player to queue
+		tempMMR = self.botSettings.GetMMR(matchPlayer)
+		self.queuedPlayers.append(QueuedPlayer(matchPlayer, tempMMR))
+
+		# Add queued player to match
+		self.matchesStarted[matchID].AddPlayer(queuedPlayer)
+
+		self.matchesStarted[matchID].BalanceTeams()
+
+		message, adminMessage = await self.SendMatchMessages(ctx, self.matchesStarted[matchID])
+
+		self.matchesStarted[matchID].matchMessage = message
+		self.matchesStarted[matchID].adminMessage = adminMessage
+
+		await self.WaitForMatchResult(ctx, matchID)
+
 	def UpdateMMR(self, user:discord.Member, mmr:int):
 		for player in self.queuedPlayers:
 			if (player == user):
@@ -247,6 +399,57 @@ class MatchService(object):
 		else:
 			await SendMessage(ctx, description='You can only reroll a map when there is a match running.', color=discord.Color.red())
 
+	async def SendMatchMessages(self, ctx, match):
+		title = 'Game #{} Started'.format(match.uniqueID)
+		description = '**Creation Time:** {}\n**Map:** {}'.format(match.creationTime, match.map)
+		thumbnail = self.botSettings.GetMapThumbnail(match.map)
+
+		team1Field = {}
+		team1Field['name'] = 'Team Blue :blue_square:'
+		team1Field['value'] = ''
+		team1Field['inline'] = False
+		
+		team2Field = {}
+		team2Field['name'] = 'Team Orange :orange_square:'
+		team2Field['value'] = ''
+		team2Field['inline'] = False		
+	
+		if (len(match.team1) > 0):
+			isFirst = True
+			for player in match.team1:
+				if (isFirst):
+					isFirst = False
+				else:
+					team1Field['value'] += '\n'
+
+				team1Field['value'] += '{0.mention}'.format(player.user)
+		else:
+			team1Field['value'] = 'Empty'
+
+		if (len(match.team2) > 0):
+			isFirst = True
+			for player in match.team2:
+				if (isFirst):
+					isFirst = False
+				else:
+					team2Field['value'] += '\n'
+
+				team2Field['value'] += '{0.mention}'.format(player.user)
+		else:
+			team2Field['value'] = 'Empty'
+
+		await ctx.bot.change_presence(activity=discord.Game(name='on {}'.format(match.map)))
+
+		adminField = {}
+		adminField['name'] = 'Report the result!'
+		adminField['value'] = 'Team Blue Win :blue_square:\nTeam Orange Win :orange_square:\nCancelled :negative_squared_cross_mark:'
+		adminField['inline'] = False	
+
+		message = await SendChannelMessage(self.botSettings.lobbyChannel, title=title, description=description, thumbnail=thumbnail, fields=[team1Field, team2Field], color=discord.Color.blue())
+		adminMessage = await SendChannelMessage(self.botSettings.reportChannel, title=title, description=description, thumbnail=thumbnail, fields=[team1Field, team2Field, adminField], reactions=self.reactions)
+
+		return message, adminMessage
+
 	async def StartMatch(self, ctx, fillWithFakePlayers:bool):
 		if (fillWithFakePlayers and len(self.queuedPlayers) < 10):
 			# Use negative ids so that we know its fake
@@ -271,95 +474,24 @@ class MatchService(object):
 			selectedMap = self.forcedMap
 			self.forcedMap = None
 
-		title = 'Game #{} Started'.format(id)
-		description = '**Creation Time:** {}\n**Map:** {}'.format(creationTime, selectedMap)
-		thumbnail = self.botSettings.GetMapThumbnail(selectedMap)
-
-		team1Field = {}
-		team1Field['name'] = 'Team Blue :blue_square:'
-		team1Field['value'] = ''
-		team1Field['inline'] = False
-		
-		team2Field = {}
-		team2Field['name'] = 'Team Orange :orange_square:'
-		team2Field['value'] = ''
-		team2Field['inline'] = False
-
-		numPlayers = len(self.queuedPlayers)
-		team1Size = int(numPlayers / 2)
-		team2Size = int(numPlayers - team1Size)
-		minDiff = 2147483647
-
-		team1 = []
-		team2 = []
-
-		def SumMMR(players):
-			sum = 0
-			for player in players:
-				sum += player.mmr
-			return sum
-
-		for i in range(10):
-			tempList = self.queuedPlayers.copy()
-			random.shuffle(tempList) 
-
-			tempT1 = tempList[:team1Size]
-			tempT2 = tempList[team1Size:]
-
-			team1Sum = SumMMR(tempT1)
-			team2Sum = SumMMR(tempT2)
-
-			diff = abs(team1Sum - team2Sum)
-			if (diff < minDiff):
-				team1 = tempT1
-				team2 = tempT2
-				minDiff = diff
-
-		if (len(team1) > 0):
-			isFirst = True
-			for player in team1:
-				if (isFirst):
-					isFirst = False
-				else:
-					team1Field['value'] += '\n'
-
-				team1Field['value'] += '{0.mention}'.format(player.user)
-		else:
-			team1Field['value'] = 'Empty'
-
-		if (len(team2) > 0):
-			isFirst = True
-			for player in team2:
-				if (isFirst):
-					isFirst = False
-				else:
-					team2Field['value'] += '\n'
-
-				team2Field['value'] += '{0.mention}'.format(player.user)
-		else:
-			team2Field['value'] = 'Empty'
-
-		self.matchesStarted[id] = Match(id, team1, team2, selectedMap, creationTime)
+		newMatch = Match(id, self.queuedPlayers, selectedMap, creationTime)
+		self.matchesStarted[id] = newMatch
 		self.queuedPlayers.clear()
 
-		await ctx.bot.change_presence(activity=discord.Game(name='on {}'.format(selectedMap)))
+		newMatch.BalanceTeams()
+	
+		message, adminMessage = await self.SendMatchMessages(ctx, newMatch)
+		
+		newMatch.matchMessage = message
+		newMatch.adminMessage = adminMessage 
 
-		adminField = {}
-		adminField['name'] = 'Report the result!'
-		adminField['value'] = 'Team Blue Win :blue_square:\nTeam Orange Win :orange_square:\nCancelled :negative_squared_cross_mark:'
-		adminField['inline'] = False
+		await self.WaitForMatchResult(ctx, id)
 
-		# To get these to work, you need to get the <:emoji_name:emoji_id>. The easiest way to do that is to type this into discord
-		# and copy what it gives you in the message: \:YourEmoji:
-		reactions = ['🟦', '🟧', '❎']
-
-		await SendChannelMessage(self.botSettings.lobbyChannel, title=title, description=description, thumbnail=thumbnail, fields=[team1Field, team2Field], color=discord.Color.blue())
-		message = await SendChannelMessage(self.botSettings.reportChannel, title=title, description=description, thumbnail=thumbnail, fields=[team1Field, team2Field, adminField], reactions=reactions)
-
+	async def WaitForMatchResult(self, ctx, id):
 		def IsValidAdminAndEmoji(reaction, user):
 			if (user.bot):
 				return False
-			return self.botSettings.IsUserAdmin(user) and str(reaction.emoji) in reactions
+			return self.botSettings.IsUserAdmin(user) and str(reaction.emoji) in self.reactions
 
 		# Wait for an admin to report the results
 		try:
@@ -370,13 +502,13 @@ class MatchService(object):
 
 		# Team 1 Win
 		emoji = str(reaction.emoji)
-		if (emoji == reactions[0]):
+		if (emoji == self.reactions[0]):
 			await self.CallMatch(ctx, user, id, MatchResult.TEAM1VICTORY)
 		# Team 2 Win
-		elif (emoji == reactions[1]):
+		elif (emoji == self.reactions[1]):
 			await self.CallMatch(ctx, user, id, MatchResult.TEAM2VICTORY)
 		# Match Cancelled
-		elif (emoji == reactions[2]):
+		elif (emoji == self.reactions[2]):
 			await self.CallMatch(ctx, user, id, MatchResult.CANCELLED)
 		else:
 			print('Something has gone very wrong here')
@@ -449,7 +581,11 @@ class MatchService(object):
 		print('Match {} has been called as {}'.format(id, matchResult))
 
 		if (id not in self.matchesStarted):
-			raise InvalidMatchID(id)
+			if (id in self.recentlySwappedMatches):
+				self.recentlySwappedMatches.remove(id)
+				return
+			else:
+				raise InvalidMatchID(id)
 
 		title = 'Match Results: Game #{}'.format(id)
 		footer = 'This match was called by {}'.format(user)
@@ -485,6 +621,13 @@ class MatchService(object):
 	def IsPlayerQueued(self, user:discord.User):
 		for player in self.queuedPlayers:
 			if player == user:
+				return True
+
+		return False
+
+	def IsPlayerInGame(self, user:discord.User):
+		for match in self.matchesStarted.values():
+			if match.IsPlayerInMatch(user):
 				return True
 
 		return False

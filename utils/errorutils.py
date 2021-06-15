@@ -3,7 +3,7 @@ from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, No
 from data.siegemap import MapExists, InvalidMap 
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import InvalidMatchResult, MatchIDNotFound, MatchResultIdentical
-from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued
+from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued, PlayerNotQueuedOrInGame, PlayersNotSwapable, PlayerSwapFailed
 from utils.chatutils import SendMessage
 
 from discord.ext import commands
@@ -71,6 +71,15 @@ async def HandleError(ctx, error):
 
 	elif (isinstance(error, PlayerNotQueued)):
 		await SendMessage(ctx, description='You are not currently in queue.', color=discord.Color.red())
+
+	elif (isinstance(error, PlayerNotQueuedOrInGame)):
+		await SendMessage(ctx, description='{0.mention} must be in queue or in a match.'.format(error.argument), color=discord.Color.red())
+
+	elif (isinstance(error, PlayersNotSwapable)):
+		await SendMessage(ctx, description='Player {0.mention} is not swapable with Player {1.mention}'.format(error.arg1, error.arg2), color=discord.Color.red())
+
+	elif (isinstance(error, PlayerSwapFailed)):
+		await SendMessage(ctx, description='Failed to find both Player {0.mention} and Player {1.mention} in the queue/start matches.'.format(error.arg1, error.arg2), color=discord.Color.red())
 
 	elif (isinstance(error, InvalidCommandChannel)):
 		await SendMessage(ctx, description='{0.mention} is not the correct channel for {1.value} commands.'.format(error.argument, error.type), color=discord.Color.red())
