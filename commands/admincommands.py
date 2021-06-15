@@ -4,7 +4,7 @@ from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, InvalidMatchResult, MatchIDNotFound, MatchResultIdentical, MatchResult
 from data.mmrrole import MMRRoleExists, MMRRoleRangeConflict, InvalidMMRRole, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap
-from services.matchservice import TeamResult
+from services.matchservice import TeamResult, PlayerNotQueuedOrInGame, PlayersNotSwapable
 from utils.botutils import IsAdmin, IsValidChannel, AddRoles, RemoveRoles
 from utils.errorutils import HandleError
 from utils.chatutils import SendMessage, SendChannelMessage
@@ -110,7 +110,7 @@ class AdminCommands(commands.Cog):
 		   **bool:** <fillWithFakePlayers>
 		   Fills the lobby with fake players. This is useful for testing bot functionality without having 10 players. **DO NOT USE IN A REAL MATCH**
 		"""
-		print('{} is force starting the match'.format(ctx.author))
+		print('{} is force starting the match {}'.format(ctx.author, 'and filling with fake users' if fillWithFakePlayers else ''))
 
 		await matchService.StartMatch(ctx, fillWithFakePlayers)
 
@@ -778,6 +778,37 @@ class AdminCommands(commands.Cog):
 
 		await matchService.RerollMap(ctx)
 
+	@commands.command('swap')
+	@IsValidChannel(ChannelType.LOBBY)
+	@IsAdmin()
+	async def OnSwapPlayers(self, ctx, player1:discord.Member, player2:discord.Member):
+		"""Swaps the player who is in a queue with someone who is in a match that has started
+
+		   **discord.Member:** <player1>
+		   One of the players you want to swap. They must be either in the queue or in a match that has already started.
+
+		   **discord.Member:** <player2>
+		   One of the players you want to swap. They must be either in the queue or in a match that has already started.
+		"""
+		print('Swapping players {} and {}'.format(player1, player2))
+
+		# Make sure both players are either in a queue or a match
+		if (not matchService.IsPlayerQueued(player1) and not matchService.IsPlayerInGame(player1)):
+			raise PlayerNotQueuedOrInGame(player1)
+
+		if (not matchService.IsPlayerQueued(player2) and not matchService.IsPlayerInGame(player2)):
+			raise PlayerNotQueuedOrInGame(player2)
+
+		# Next validate that they aren't both in queue or both in a match
+		if (matchService.IsPlayerQueued(player1) and matchService.IsPlayerQueued(player2)):
+			raise PlayersNotSwapable(player1, player2)
+
+		if (matchService.IsPlayerInGame(player1) and matchService.IsPlayerInGame(player2)):
+			raise PlayersNotSwapable(player1, player2)
+
+		# Now try to swap
+		await matchService.SwapPlayers(ctx, player1, player2)
+
 	@OnQuit.error
 	@OnClearQueue.error
 	@OnKickPlayerFromQueue.error
@@ -801,6 +832,7 @@ class AdminCommands(commands.Cog):
 	@OnRerollMap.error
 	@OnSetMapThumbnail.error
 	@OnForceRegisterPlayer.error
+	@OnSwapPlayers.error
 	async def errorHandling(self, ctx, error):
 		await HandleError(ctx, error)
 

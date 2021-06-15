@@ -22,7 +22,7 @@ class BotCommands(commands.Cog):
 	@tasks.loop(minutes=30)
 	async def OnUpdateStatus(self):
 		print('Changing status!')
-		gameOptions = ['Apex Legends', 'Beat Saber', 'Golf It!', 'Rainbow Six Siege']
+		gameOptions = ['Apex Legends', 'Beat Saber', 'Golf It!', 'Rainbow Six Siege', 'Gartic Phone']
 		watchingOptions = ['Beaulo play', 'NA League', 'EU League', 'LATAM League', 'APAC League']
 		listeningOptions = ['Golf It! music', 'JPP Lo-Fi']
 
@@ -73,7 +73,7 @@ class BotCommands(commands.Cog):
 			return
 
 		if not message.mention_everyone and self.bot.user.mentioned_in(message):
-			quips = ['Bonjour', str(discord.utils.get(message.guild.emojis, name='jpp')), 'yolo', 'Sorry, im playing Apex', ':sunglasses:', 'Beat Saber :heart:', 'We as a team', 'https://tenor.com/view/this-is-fine-fire-house-burning-okay-gif-5263684', 'Villa is the best']
+			quips = ['Bonjour', str(discord.utils.get(message.guild.emojis, name='jpp')), 'yolo', 'Sorry, im playing Apex', ':sunglasses:', 'Beat Saber :heart:', 'We as a team', 'https://tenor.com/view/this-is-fine-fire-house-burning-okay-gif-5263684', 'Villa is the best', 'My favorite protocol is the G.A.B. Protocol', 'Emplio']
 
 			# pmcc detected
 			if message.author.id == 90342358620573696:
