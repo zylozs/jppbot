@@ -2,6 +2,7 @@ from discord.ext import commands
 from utils.chatutils import SendChannelMessage
 from globals import *
 import discord
+import math
 import itertools
 
 class HelpCommand(commands.DefaultHelpCommand):
@@ -84,29 +85,56 @@ class HelpCommand(commands.DefaultHelpCommand):
 			commands parameter.
 		"""
 
-		field = {}
-		field['name'] = heading 
-		field['value'] = ''
-		field['inline'] = False
+		fields = []
 
-		if not commands:
+		def CreateField(extraHeader = None, startPage=True):
+			field = {}
+			field['name'] = heading if extraHeader == None else '{}{}'.format(heading, extraHeader)
+			field['value'] = '```' if startPage else ''
+			field['inline'] = False
+
 			return field
 
-		field['value'] = '```'
-		isFirst = False
+
+		if not commands:
+			return CreateField(startPage=False)
 
 		max_size = max_size or self.get_max_size(commands)
+		numCommands = len(commands)
+
+		maxCommandsPerPage = 15
+		numPages = math.ceil(numCommands / maxCommandsPerPage)
+
+		page = 1
+
+		field = None
+		if (numPages > 1):
+			field = CreateField(extraHeader=' [{}/{}]'.format(page, numPages))
+		else:
+			field = CreateField()
 
 		get_width = discord.utils._string_width
+		numCommands = 0
 
 		for command in commands:
+			if (numCommands >= maxCommandsPerPage):
+				field['value'] += '```'
+				fields.append(field)
+
+				numCommands = 0
+				page += 1
+				field = CreateField(extraHeader=' [{}/{}]'.format(page, numPages))
+
 			name = command.name
 			width = max_size - (get_width(name) - len(name))
 			field['value'] += '\n{0:<{width}} {1}'.format(name, command.short_doc, width=width)
 
-		field['value'] += '```'
+			numCommands += 1	
 
-		return field
+		field['value'] += '```'
+		fields.append(field)
+
+		return fields
 
 	async def send_bot_help(self, mapping):
 		ctx = self.context
@@ -134,7 +162,7 @@ class HelpCommand(commands.DefaultHelpCommand):
 
 			commands = sorted(commands, key=lambda c: c.name) if self.sort_commands else list(commands)
 			field = self.add_indented_commands(commands, heading=category)
-			fields.append(field)
+			fields.extend(field)
 
 		footer = self.get_ending_note()
 
@@ -160,11 +188,11 @@ class HelpCommand(commands.DefaultHelpCommand):
 
 	async def send_cog_help(self, cog):
 		filtered = await self.filter_commands(cog.get_commands(), sort=self.sort_commands)
-		field = self.add_indented_commands(filtered, heading=self.commands_heading)
+		fields = self.add_indented_commands(filtered, heading=self.commands_heading)
 
 		footer = self.get_ending_note()
 
-		await SendChannelMessage(self.get_destination(), footer=footer, fields=[field], color=discord.Color.blue())
+		await SendChannelMessage(self.get_destination(), footer=footer, fields=fields, color=discord.Color.blue())
 
 	async def send_pages(self):
 		pass
