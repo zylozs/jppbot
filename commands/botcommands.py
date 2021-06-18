@@ -468,6 +468,23 @@ class BotCommands(commands.Cog):
 
 		await SendMessage(ctx, title=title, fields=[mmrField, matchField, mapField, playerField], color=discord.Color.blue())
 
+	@commands.command(name='slap')
+	async def OnSlapUser(self, ctx, member:discord.Member):
+		"""Slaps the user, preferably with a trout
+
+		   **discord.Member:** <member>
+		   The person you wish you slap.
+		"""
+
+		# First send the slap
+		await ctx.channel.send('{0.mention} slaps {1.mention} around a bit with a large trout'.format(ctx.author, member))
+
+		# Then clean up the request to avoid polluting chat
+		try:
+			await ctx.message.delete()
+		except:
+			pass
+
 	@OnJPP.error
 	@OnWhenDoesBeauloPlay.error
 	@OnRegisterPlayer.error
@@ -481,5 +498,6 @@ class BotCommands(commands.Cog):
 	@OnShowStats.error
 	@OnGolfIt.error
 	@OnUpdateStatus.error
+	@OnSlapUser.error
 	async def errorHandling(self, ctx, error):
 		await HandleError(ctx, error)

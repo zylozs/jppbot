@@ -782,7 +782,7 @@ class AdminCommands(commands.Cog):
 	@IsValidChannel(ChannelType.LOBBY)
 	@IsAdmin()
 	async def OnSwapPlayers(self, ctx, player1:discord.Member, player2:discord.Member):
-		"""Swaps the player who is in a queue with someone who is in a match that has started
+		"""Swaps two players between a queue and a match
 
 		   **discord.Member:** <player1>
 		   One of the players you want to swap. They must be either in the queue or in a match that has already started.

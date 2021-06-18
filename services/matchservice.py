@@ -374,6 +374,30 @@ class MatchService(object):
 			self.matchesStarted[key].map = map
 
 			await SendMessage(ctx, description='The map for Game #{} has been changed to {}.'.format(key, map), color=discord.Color.blue())
+
+			# Delete the old message
+			try:
+				await self.matchesStarted[key].matchMessage.delete()
+			except:
+				pass
+
+			try:
+				await self.matchesStarted[key].adminMessage.delete()
+			except:
+				pass
+
+			self.matchesStarted[key].matchMessage = None
+			self.matchesStarted[key].adminMessage = None
+			self.recentlySwappedMatches.append(key)
+
+			# Send an updated message
+			message, adminMessage = await self.SendMatchMessages(ctx, self.matchesStarted[key])
+
+			self.matchesStarted[key].matchMessage = message
+			self.matchesStarted[key].adminMessage = adminMessage
+
+			await self.WaitForMatchResult(ctx, key)
+
 		elif (len(self.queuedPlayers) > 0):
 			self.forcedMap = map
 			await SendMessage(ctx, description='The next map will be {}.'.format(map), color=discord.Color.blue())
@@ -396,6 +420,29 @@ class MatchService(object):
 			self.matchesStarted[key].map = selectedMap 
 
 			await SendMessage(ctx, description='The map for Game #{} has been changed to {}.'.format(key, selectedMap), color=discord.Color.blue())
+
+			# Delete the old message
+			try:
+				await self.matchesStarted[key].matchMessage.delete()
+			except:
+				pass
+
+			try:
+				await self.matchesStarted[key].adminMessage.delete()
+			except:
+				pass
+
+			self.matchesStarted[key].matchMessage = None
+			self.matchesStarted[key].adminMessage = None
+			self.recentlySwappedMatches.append(key)
+
+			# Send an updated message
+			message, adminMessage = await self.SendMatchMessages(ctx, self.matchesStarted[key])
+
+			self.matchesStarted[key].matchMessage = message
+			self.matchesStarted[key].adminMessage = adminMessage
+
+			await self.WaitForMatchResult(ctx, key)
 		else:
 			await SendMessage(ctx, description='You can only reroll a map when there is a match running.', color=discord.Color.red())
 
@@ -416,25 +463,33 @@ class MatchService(object):
 	
 		if (len(match.team1) > 0):
 			isFirst = True
+			mmrSum = 0
 			for player in match.team1:
 				if (isFirst):
 					isFirst = False
 				else:
 					team1Field['value'] += '\n'
+				mmrSum += player.mmr
 
 				team1Field['value'] += '{0.mention}'.format(player.user)
+
+			team1Field['name'] = '[{}] {}'.format(mmrSum, team1Field['name'])
 		else:
 			team1Field['value'] = 'Empty'
 
 		if (len(match.team2) > 0):
 			isFirst = True
+			mmrSum = 0
 			for player in match.team2:
 				if (isFirst):
 					isFirst = False
 				else:
 					team2Field['value'] += '\n'
+				mmrSum += player.mmr
 
 				team2Field['value'] += '{0.mention}'.format(player.user)
+
+			team2Field['name'] = '[{}] {}'.format(mmrSum, team2Field['name'])
 		else:
 			team2Field['value'] = 'Empty'
 
