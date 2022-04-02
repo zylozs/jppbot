@@ -1,8 +1,9 @@
-from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, UserNotAdmin, EmptyName
+from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, EmptyName, InvalidActivityIndex
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap 
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import InvalidMatchResult, MatchIDNotFound, MatchResultIdentical
+from data.activitydata import InvalidActivityType
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued, PlayerNotQueuedOrInGame, PlayersNotSwapable, PlayerSwapFailed
 from utils.chatutils import SendMessage
 
@@ -45,6 +46,9 @@ async def HandleError(ctx, error):
 	elif (isinstance(error, InvalidMMRRole)):
 		await SendMessage(ctx, description='{0.mention} is not a valid rank.'.format(error.argument), color=discord.Color.red())
 
+	elif (isinstance(error, InvalidActivityIndex)):
+		await SendMessage(ctx, description='{0} is not a valid activity index.'.format(error.argument), color=discord.Color.red())
+
 	elif (isinstance(error, MMRRoleExists)):
 		await SendMessage(ctx, description='{0.mention} is already a rank.'.format(error.argument), color=discord.Color.red())
 
@@ -61,7 +65,10 @@ async def HandleError(ctx, error):
 		await SendMessage(ctx, description='There is no guild set.', color=discord.Color.red())
 
 	elif (isinstance(error, InvalidMatchResult)):
-		await SendMessage(ctx, description='`{}` is not a valid Match Result.'.format(argument), color=discord.Color.red())
+		await SendMessage(ctx, description='`{}` is not a valid Match Result.'.format(error.argument), color=discord.Color.red())
+
+	elif (isinstance(error, InvalidActivityType)):
+		await SendMessage(ctx, description='`{}` is not a valid Activity Type.'.format(error.argument), color=discord.Color.red())
 
 	elif (isinstance(error, NoMMRRoles)):
 		await SendMessage(ctx, description='There are no ranks.', color=discord.Color.red())
@@ -84,6 +91,9 @@ async def HandleError(ctx, error):
 	elif (isinstance(error, InvalidCommandChannel)):
 		await SendMessage(ctx, description='{0.mention} is not the correct channel for {1.value} commands.'.format(error.argument, error.type), color=discord.Color.red())
 
+	elif (isinstance(error, InvalidOwnerCommandChannel)):
+		await SendMessage(ctx, description='{0.mention} is not the correct channel for owner commands.'.format(error.argument), color=discord.Color.red())
+
 	elif (isinstance(error, UserNotRegistered)):
 		await SendMessage(ctx, description='User {0.mention} is not registered'.format(error.argument), color=discord.Color.red())
 
@@ -97,6 +107,9 @@ async def HandleError(ctx, error):
 		await SendMessage(ctx, description='The new match result is the same as the original. Nothing will happen.', color=discord.Color.red())
 
 	elif (isinstance(error, UserNotAdmin)):
+		await SendMessage(ctx, description='You do not have permission to run this command.', color=discord.Color.red())
+
+	elif (isinstance(error, UserNotOwner)):
 		await SendMessage(ctx, description='You do not have permission to run this command.', color=discord.Color.red())
 
 	elif (isinstance(error, EmptyName)):

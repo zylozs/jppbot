@@ -22,9 +22,6 @@ class BotCommands(commands.Cog):
 	@tasks.loop(minutes=30)
 	async def OnUpdateStatus(self):
 		print('Changing status!')
-		gameOptions = ['Apex Legends', 'Beat Saber', 'Golf It!', 'Rainbow Six Siege', 'Gartic Phone']
-		watchingOptions = ['Beaulo play', 'NA League', 'EU League', 'LATAM League', 'APAC League']
-		listeningOptions = ['Golf It! music', 'JPP Lo-Fi']
 
 		# Dont override matchmaking
 		if (len(matchService.matchesStarted) > 0):
@@ -38,35 +35,27 @@ class BotCommands(commands.Cog):
 			await self.bot.change_presence(activity=discord.Game('Golf It!'))
 			return
 
-		randomActivity = random.randint(0, 5)
+		randomActivity = random.randint(0, 1)
+		newActivity = botSettings.GetRandomActivity()
+
+		activity = None
 		# Do nothing half of the time
-		if (randomActivity >= 0 and randomActivity < 3):
-			await self.bot.change_presence(activity=None)
-		# Pick something to watch
-		elif (randomActivity == 3):
-			activity = discord.Activity(name=random.choice(watchingOptions), type=discord.ActivityType.watching)
-			await self.bot.change_presence(activity=activity)
-		# Pick a game!
-		elif (randomActivity == 4):
-			await self.bot.change_presence(activity=discord.Game(random.choice(gameOptions)))
-		# Pick something to listen to
-		elif (randomActivity == 5):
-			activity = discord.Activity(name=random.choice(listeningOptions), type=discord.ActivityType.listening)
-			await self.bot.change_presence(activity=activity)
+		if (randomActivity == 1 and newActivity is not None):
+			# Pick a game!
+			if (newActivity.type == 0):
+				activity = discord.Game(newActivity.name)
+			# Pick something to watch
+			elif (newActivity.type == 1):
+				activity = discord.Activity(name=newActivity.name, type=discord.ActivityType.watching)
+			# Pick something to listen to
+			elif (newActivity.type == 2):
+				activity = discord.Activity(name=newActivity.name, type=discord.ActivityType.listening)
+
+		await self.bot.change_presence(activity=activity)
 
 	@commands.Cog.listener()
 	async def on_message(self, message):
 		if message.author.bot:
-			return
-
-		if message.author.id == 86642208693825536 and message.guild is None and message.content.startswith('!setnickname'):
-			member = botSettings.guild.get_member(self.bot.user.id)
-			content = message.content.split(' ', 1)
-
-			if (len(content) > 1):
-				newNickname = content[1]
-				await member.edit(nick=newNickname)
-				print('Changing nickname to: {}'.format(newNickname))
 			return
 
 		if message.guild is None:

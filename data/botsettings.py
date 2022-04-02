@@ -3,6 +3,7 @@ from data.mmrrole import MMRRole
 from data.matchhistorydata import MatchHistoryData
 from services.matchservice import TeamResult, FakeUser
 from data.siegemap import SiegeMap
+from data.activitydata import ActivityData
 from enum import Enum
 from discord.ext import commands
 from mongoengine import Document, IntField 
@@ -28,6 +29,11 @@ class UserNotAdmin(commands.CommandError):
 		self.argument = argument
 		super().__init__('The user {0.mention} is not an admin'.format(argument))
 
+class UserNotOwner(commands.CommandError):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('The user {0.mention} is not the owner'.format(argument))
+
 class GuildTextChannelMismatch(commands.BadArgument):
 	def __init__(self, argument):
 		self.argument = argument
@@ -46,11 +52,21 @@ class InvalidCommandChannel(commands.BadArgument):
 	def __init__(self, argument, type):
 		self.argument = argument
 		self.type = type
-		super().__init__('{0.mention} is not the correct channel for {1.value} commands'.format(argument, type))
+		super().__init__('{0} is not the correct channel for {1.value} commands'.format(argument.mention if hasattr(argument, 'mention') else 'This', type))
+
+class InvalidOwnerCommandChannel(commands.BadArgument):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('{0.mention} is not the correct channel for owner commands'.format(argument))
 
 class EmptyName(commands.BadArgument):
 	def __init__(self):
 		super().__init__('An empty string is not a valid name.')
+
+class InvalidActivityIndex(commands.BadArgument):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('{0} is not a valid activity index.'.format(argument))
 
 class ChannelType(Enum):
 	LOBBY = "lobby"
@@ -107,6 +123,7 @@ class BotSettings(Document):
 	registeredPlayers = {}
 	mmrRoles = {}
 	maps = {}
+	activities = []
 
 	def _GetGuild(self, id, bot):
 		if (len(bot.guilds) == 0):
@@ -158,11 +175,20 @@ class BotSettings(Document):
 			self.mmrRoles[role.role.id] = role 
 
 		# Maps
+		# Type: Dictionary<key=string, value=SiegeMap>
 		self.maps = {}
 
 		for _map in SiegeMap.objects:
 			_map.Init()
 			self.maps[_map.name.lower()] = _map
+
+		# Activities
+		# Type: Array<value=ActivityData>
+		self.activities = []
+
+		for activity in ActivityData.objects:
+			activity.Init()
+			self.activities.append(activity)
 
 		print('Settings Loaded')
 
@@ -394,8 +420,14 @@ class BotSettings(Document):
 	def IsUserRegisteredByID(self, id:int):
 		return id in self.registeredPlayers
 
-	def IsUserAdmin(self, user:discord.Member):
-		return self.adminRole in user.roles
+	def IsUserAdmin(self, user:discord.User):
+		if (isinstance(user, discord.Member)):
+			return self.adminRole in user.roles
+		else:
+			return False
+
+	def IsUserOwner(self, user:discord.User):
+		return user.id == 86642208693825536;
 
 	def IsValidMMRRole(self, role:discord.Role):
 		return role.id in self.mmrRoles
@@ -549,4 +581,17 @@ class BotSettings(Document):
 
 		return oldMMR, newMMR, oldRole, newRole
 
+	def GetRandomActivity(self):
+		if (len(self.activities) == 0):
+			return None
 
+		return random.choice(self.activities)
+
+	def AddActivity(self, name:str, type:int):
+		activity = ActivityData()
+		activity.SetData(name, type)
+		self.activities.append(activity)
+
+	def RemoveActivity(self, index:int):
+		self.activities[index].delete() # remove entry from database
+		self.activities.pop(index)
