@@ -28,18 +28,19 @@ class MatchResult(Enum):
 	async def convert(cls, ctx, argument):
 		returnType = MatchResult.INVALID
 
-		if (isinstance(argument, int)):
-			if (argument == MatchResult.TEAM1VICTORY.value):
+		if (isinstance(argument, int) or argument.isnumeric()):
+			tempArg = int(argument)
+			if (tempArg == MatchResult.TEAM1VICTORY.value):
 				returnType = MatchResult.TEAM1VICTORY
-			elif (argument == MatchResult.TEAM2VICTORY.value):
+			elif (tempArg == MatchResult.TEAM2VICTORY.value):
 				returnType = MatchResult.TEAM2VICTORY
-			elif (argument == MatchResult.CANCELLED.value):
+			elif (tempArg == MatchResult.CANCELLED.value):
 				returnType = MatchResult.CANCELLED
 		elif (isinstance(argument, str)):
 			tempArg = argument.lower()
-			if (tempArg.__contains__('blue') or tempArg.__contains__('team1') or tempArg.__contains__('t1')):
+			if (tempArg.__contains__('blue') or tempArg.__contains__('team1') or tempArg == 't1'):
 				returnType = MatchResult.TEAM1VICTORY
-			elif (tempArg.__contains__('orange') or tempArg.__contains__('team2') or tempArg.__contains__('t2')):
+			elif (tempArg.__contains__('orange') or tempArg.__contains__('team2') or tempArg == 't2'):
 				returnType = MatchResult.TEAM2VICTORY
 			elif (tempArg.__contains__('cancel')):
 				returnType = MatchResult.CANCELLED

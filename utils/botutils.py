@@ -1,4 +1,4 @@
-from data.botsettings import ChannelType, InvalidCommandChannel, UserNotAdmin
+from data.botsettings import ChannelType, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner
 from utils.chatutils import SendMessage
 from globals import *
 from discord.ext import commands
@@ -12,6 +12,20 @@ def IsValidChannel(channelType:ChannelType, includeAdmin=True):
 
 		if (not botSettings.IsValidChannel(ctx.channel, channelType, includeAdmin=includeAdmin)):
 			raise InvalidCommandChannel(ctx.channel, channelType)
+		return True
+	return commands.check(predicate)
+
+def IsPrivateMessage():
+	async def predicate(ctx):
+		if (ctx.guild is not None):
+			raise InvalidOwnerCommandChannel(ctx.channel)
+		return True
+	return commands.check(predicate)
+
+def IsOwner():
+	async def predicate(ctx):
+		if (not botSettings.IsUserOwner(ctx.author)):
+			raise UserNotOwner(ctx.author)
 		return True
 	return commands.check(predicate)
 

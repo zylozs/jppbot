@@ -1,5 +1,6 @@
 from discord.ext import commands
 from utils.chatutils import SendChannelMessage
+from data.botsettings import InvalidCommandChannel, InvalidOwnerCommandChannel 
 from globals import *
 import discord
 import math
@@ -157,6 +158,9 @@ class HelpCommand(commands.DefaultHelpCommand):
 
 		# Now we can add the commands to the page.
 		for category, commands in to_iterate:
+			if (category != 'OwnerCommands' and ctx.guild is None):
+				continue
+
 			if (category == 'AdminCommands' and not botSettings.IsUserAdmin(ctx.author)):
 				continue
 

@@ -28,6 +28,7 @@ connect(db="jppbot", host=ip, port=int(port))
 from globals import *
 from commands.admincommands import AdminCommands
 from commands.botcommands import BotCommands 
+from commands.ownercommands import OwnerCommands 
 from commands.helpcommand import HelpCommand 
 from discord.ext import commands
 import discord
@@ -39,6 +40,7 @@ intents.guilds = True
 bot = commands.Bot(command_prefix='!', description='A bot to host the weekly JPP sessions.', intents=intents)
 bot.add_cog(AdminCommands(bot))
 bot.add_cog(BotCommands(bot))
+bot.add_cog(OwnerCommands(bot))
 bot.help_command = HelpCommand()
 
 # We dont want people dming the bot to run commands
@@ -46,6 +48,8 @@ from utils.errorutils import HandleError, NoPrivateMessages
 
 @bot.check
 async def block_dms(ctx):
+	if (botSettings.IsUserOwner(ctx.author)):
+		return True 
 	if (ctx.guild is None):
 		raise NoPrivateMessages()
 	return ctx.guild is not None
