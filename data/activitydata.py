@@ -7,6 +7,10 @@ class InvalidActivityType(commands.BadArgument):
 		self.argument = argument
 		super().__init__('Activity Type "{}" is not valid.'.format(argument))
 
+class NoActivities(commands.BadArgument):
+    def __init__(self):
+        super().__init__('There are no activities yet.')
+
 class ActivityType(Enum):
 	GAME = 0
 	WATCHING = 1
@@ -43,6 +47,7 @@ class ActivityType(Enum):
 class ActivityData(Document):
 	_name = StringField(default='')
 	_type = IntField(default=0)
+	_useCount = IntField(default=0)
 
 	# Types
 	# 0 = Game Activity
@@ -52,17 +57,21 @@ class ActivityData(Document):
 	# Settings
 	name = ''
 	type = 0
+	useCount = 0
 
 	def Init(self):
 		self.name = self._name
 		self.type = self._type
+		self.useCount = self._useCount
 
 	def SetData(self, name:str, type:int):
 		self.name  = name
 		self.type = type
+		self.useCount = 0
 
 		self._name = name
 		self._type = type
+		self._useCount = 0
 		self.save()
 
 	def SetName(self, name:str):
@@ -73,4 +82,9 @@ class ActivityData(Document):
 	def SetType(self, type:int):
 		self.type = type
 		self._type = type
+		self.save()
+
+	def IncrementUse(self):
+		self.useCount += 1
+		self._useCount += 1
 		self.save()

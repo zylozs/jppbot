@@ -4,6 +4,7 @@ from data.matchhistorydata import MatchHistoryData
 from services.matchservice import TeamResult, FakeUser
 from data.siegemap import SiegeMap
 from data.activitydata import ActivityData
+from data.quipdata import QuipData, QuipType
 from enum import Enum
 from discord.ext import commands
 from mongoengine import Document, IntField 
@@ -63,10 +64,19 @@ class EmptyName(commands.BadArgument):
 	def __init__(self):
 		super().__init__('An empty string is not a valid name.')
 
+class EmptyQuip(commands.BadArgument):
+	def __init__(self):
+		super().__init__('An empty string is not a valid quip.')
+
 class InvalidActivityIndex(commands.BadArgument):
 	def __init__(self, argument):
 		self.argument = argument
 		super().__init__('{0} is not a valid activity index.'.format(argument))
+
+class InvalidQuipIndex(commands.BadArgument):
+	def __init__(self, argument):
+		self.argument = argument
+		super().__init__('{0} is not a valid quip index.'.format(argument))
 
 class ChannelType(Enum):
 	LOBBY = "lobby"
@@ -124,6 +134,7 @@ class BotSettings(Document):
 	mmrRoles = {}
 	maps = {}
 	activities = []
+	quips = []
 
 	def _GetGuild(self, id, bot):
 		if (len(bot.guilds) == 0):
@@ -183,12 +194,20 @@ class BotSettings(Document):
 			self.maps[_map.name.lower()] = _map
 
 		# Activities
-		# Type: Array<value=ActivityData>
+		# Type: Array<ActivityData>
 		self.activities = []
 
 		for activity in ActivityData.objects:
 			activity.Init()
 			self.activities.append(activity)
+
+		# Quips
+		# Type: Array<QuipData>
+		self.quips = []
+
+		for quip in QuipData.objects:
+			quip.Init(bot)
+			self.quips.append(quip)
 
 		print('Settings Loaded')
 
@@ -595,3 +614,36 @@ class BotSettings(Document):
 	def RemoveActivity(self, index:int):
 		self.activities[index].delete() # remove entry from database
 		self.activities.pop(index)
+
+	def GetRandomQuip(self, requestor:discord.User):
+		# Filter out responses that can't be given
+		def filterPredicate(_quip):
+			if (_quip.type == QuipType.SPECIFIC_USER.value):
+				if (_quip.user and _quip.user.id == requestor.id):
+					return True
+				elif (_quip._user == requestor.id):
+					return True
+			
+			if (_quip.type == QuipType.GUILD_EMOJI.value and discord.utils.get(self.guild.emojis, name=_quip.quip)):
+				return True	
+
+			if (_quip.type == QuipType.REGULAR.value):
+				return True
+
+			return False
+
+		possibleQuips = list(filter(filterPredicate, self.quips))
+
+		if (len(possibleQuips) == 0):
+			return None
+
+		return random.choice(possibleQuips) 
+
+	def AddQuip(self, quip:str, type:int, user=None):
+		newQuip = QuipData()
+		newQuip.SetData(quip, type, user)
+		self.quips.append(newQuip)
+
+	def RemoveQuip(self, index:int):
+		self.quips[index].delete() # remove entry from database
+		self.quips.pop(index)
