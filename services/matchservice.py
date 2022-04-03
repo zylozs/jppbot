@@ -200,14 +200,14 @@ class MatchService(object):
 	def GetNotInQueue(self, members):
 		missing = []
 
-		for member in members:
+		for memberID in members.keys():
 			found = False
 			for player in self.queuedPlayers:
-				if player == member:
+				if player.user.id == memberID:
 					found = True
 
 			if (not found):
-				missing.append(member)
+				missing.append(memberID)
 
 		return missing
 

@@ -199,7 +199,7 @@ class BotCommands(commands.Cog):
 
 		missingMembers = []
 		for channel in botSettings.guild.voice_channels:
-			missingMembers.extend(matchService.GetNotInQueue(channel.members))
+			missingMembers.extend(matchService.GetNotInQueue(channel.voice_states))
 
 		if (len(missingMembers) == 0):
 			await SendMessage(ctx, description='Nobody is missing from queue.', color=discord.Color.blue())
@@ -210,15 +210,14 @@ class BotCommands(commands.Cog):
 		field['value'] = ''
 		field['inline'] = False
 
-		isFirst = True
+		converter = commands.MemberConverter() 
 
-		for member in missingMembers:
-			if (isFirst):
-				isFirst = False
-			else:
-				description += '\n'
-
-			field['value'] += '{0.mention}\n'.format(member)
+		for memberID in missingMembers:
+			try:
+				member = await converter.convert(ctx, str(memberID))
+				field['value'] += '{0.mention}\n'.format(member)
+			except commands.errors.MemberNotFound:
+				field['value'] += '{0}\n'.format(memberID)
 
 		await SendMessage(ctx, fields=[field], color=discord.Color.blue())
 
