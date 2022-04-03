@@ -1,6 +1,7 @@
 from data.botsettings import ChannelType, RegisteredRoleUnitialized, InvalidGuild, EmptyName
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, MatchResult
+from data.quipdata import QuipType
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued
 from utils.chatutils import SendMessage
 from utils.botutils import IsValidChannel
@@ -41,6 +42,7 @@ class BotCommands(commands.Cog):
 		activity = None
 		# Do nothing half of the time
 		if (randomActivity == 1 and newActivity is not None):
+			newActivity.IncrementUse()
 			# Pick a game!
 			if (newActivity.type == 0):
 				activity = discord.Game(newActivity.name)
@@ -62,13 +64,15 @@ class BotCommands(commands.Cog):
 			return
 
 		if not message.mention_everyone and self.bot.user.mentioned_in(message):
-			quips = ['Bonjour', str(discord.utils.get(message.guild.emojis, name='jpp')), 'yolo', 'Sorry, im playing Apex', ':sunglasses:', 'Beat Saber :heart:', 'We as a team', 'https://tenor.com/view/this-is-fine-fire-house-burning-okay-gif-5263684', 'Villa is the best', 'My favorite protocol is the G.A.B. Protocol', 'Emplio']
+			selectedQuip = botSettings.GetRandomQuip(message.author)
+			if (selectedQuip is not None):
+				selectedQuip.IncrementUse()
 
-			# pmcc detected
-			if message.author.id == 90342358620573696:
-				quips.extend(['Are you my twin?', 'Seems pretty sus'])
+				response = selectedQuip.quip
+				if (selectedQuip.type == QuipType.GUILD_EMOJI.value):
+					response = str(discord.utils.get(message.guild.emojis, name=selectedQuip.quip))
 
-			await message.channel.send(random.choice(quips))
+				await message.channel.send(response)
 		elif 'jpp' in message.content.lower() and not message.content.startswith('!jpp'):
 			await message.add_reaction(str(discord.utils.get(message.guild.emojis, name='jpp')))
 		elif '👀' in message.content:
