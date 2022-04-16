@@ -5,7 +5,7 @@ from discord.ext import commands
 class InvalidActivityType(commands.BadArgument):
 	def __init__(self, argument):
 		self.argument = argument
-		super().__init__('Activity Type "{}" is not valid.'.format(argument))
+		super().__init__('Activity Type `{}` is not valid.'.format(argument))
 
 class NoActivities(commands.BadArgument):
     def __init__(self):

@@ -5,6 +5,7 @@ from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import InvalidMatchResult, MatchIDNotFound, MatchResultIdentical
 from data.activitydata import InvalidActivityType, NoActivities
 from data.quipdata import NoQuips, InvalidQuipType, InvalidGuildEmoji
+from data.mappool import InvalidMapPool, MapPoolExists, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued, PlayerNotQueuedOrInGame, PlayersNotSwapable, PlayerSwapFailed
 from utils.chatutils import SendMessage
 
@@ -66,10 +67,22 @@ async def HandleError(ctx, error):
 		await SendMessage(ctx, description='The MMR Range you provided overlaps with another rank.', color=discord.Color.red())
 
 	elif (isinstance(error, MapExists)):
-		await SendMessage(ctx, description='{} is already a map'.format(error.argument), color=discord.Color.red())
+		await SendMessage(ctx, description='`{}` is already a map'.format(error.argument), color=discord.Color.red())
 
 	elif (isinstance(error, InvalidMap)):
-		await SendMessage(ctx, description='{} is not a valid map.'.format(error.argument), color=discord.Color.red())
+		await SendMessage(ctx, description='`{}` is not a valid map.'.format(error.argument), color=discord.Color.red())
+
+	elif (isinstance(error, MapPoolExists)):
+		await SendMessage(ctx, description='`{}` is already a map pool'.format(error.argument), color=discord.Color.red())
+
+	elif (isinstance(error, InvalidMapPool)):
+		await SendMessage(ctx, description='`{}` is not a valid map pool.'.format(error.argument), color=discord.Color.red())
+
+	elif (isinstance(error, MapPoolMapExists)):
+		await SendMessage(ctx, description='`{}` is already a map in `{}`'.format(error.argument2, error.argument), color=discord.Color.red())
+
+	elif (isinstance(error, InvalidMapPoolMap)):
+		await SendMessage(ctx, description='`{}` is not a valid map in `{}`.'.format(error.argument2, error.argument), color=discord.Color.red())
 
 	elif (isinstance(error, InvalidGuild)):
 		await SendMessage(ctx, description='There is no guild set.', color=discord.Color.red())
@@ -79,6 +92,9 @@ async def HandleError(ctx, error):
 
 	elif (isinstance(error, InvalidActivityType)):
 		await SendMessage(ctx, description='`{}` is not a valid Activity Type.'.format(error.argument), color=discord.Color.red())
+
+	elif (isinstance(error, InvalidMapPoolType)):
+		await SendMessage(ctx, description='`{}` is not a valid Map Pool Type.'.format(error.argument), color=discord.Color.red())
 
 	elif (isinstance(error, InvalidQuipType)):
 		await SendMessage(ctx, description='`{}` is not a valid Quip Type.'.format(error.argument), color=discord.Color.red())
