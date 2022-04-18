@@ -5,6 +5,7 @@ from datetime import datetime
 from data.matchhistorydata import MatchResult, MatchHistoryData, MatchHistoryPlayerData
 from enum import Enum
 import random
+import asyncio
 
 class PlayerAlreadyQueued(commands.BadArgument):
     def __init__(self, argument):
@@ -65,14 +66,16 @@ class Match(object):
     team2 = []
     players = []
     map = ''
+    pool = ''
     creationTime = ''
     uniqueID = 0
     matchMessage = None
     adminMessage = None
 
-    def __init__(self, id, players, map, creationTime):
+    def __init__(self, id, players, map, pool, creationTime):
         self.uniqueID = id
         self.map = map
+        self.pool = pool
         self.creationTime = creationTime
         self.players = players.copy()
 
@@ -97,9 +100,9 @@ class Match(object):
         data = MatchHistoryData()
 
         if (result == MatchResult.TEAM1VICTORY or result == MatchResult.CANCELLED):
-            data.StoreData(winnerTeamData, loserTeamData, result, self.map, self.creationTime, self.uniqueID)
+            data.StoreData(winnerTeamData, loserTeamData, result, self.map, self.pool, self.creationTime, self.uniqueID)
         elif (result == MatchResult.TEAM2VICTORY):
-            data.StoreData(loserTeamData, winnerTeamData, result, self.map, self.creationTime, self.uniqueID)
+            data.StoreData(loserTeamData, winnerTeamData, result, self.map, self.pool, self.creationTime, self.uniqueID)
 
     def RemovePlayer(self, user:discord.User):
         for i in range(len(self.team1)):
@@ -183,7 +186,7 @@ class TeamResult(Enum):
 
 class MatchService(object):
     queuedPlayers = []
-    recentlySwappedMatches = []
+    recentlySwappedMessages = []
     matchesStarted = {}
     bot = None
     botSettings = None
@@ -326,6 +329,7 @@ class MatchService(object):
         except:
             pass
 
+        messageID = self.matchesStarted[matchID].adminMessage.id
         try:
             await self.matchesStarted[matchID].adminMessage.delete()
         except:
@@ -333,7 +337,7 @@ class MatchService(object):
 
         self.matchesStarted[matchID].matchMessage = None
         self.matchesStarted[matchID].adminMessage = None
-        self.recentlySwappedMatches.append(matchID)
+        self.recentlySwappedMessages.append(messageID)
 
         # Remove the queued player
         mmr = 0
@@ -360,7 +364,7 @@ class MatchService(object):
         self.matchesStarted[matchID].matchMessage = message
         self.matchesStarted[matchID].adminMessage = adminMessage
 
-        await self.WaitForMatchResult(ctx, matchID)
+        await self.WaitForMatchResult(ctx, adminMessage, matchID)
 
     def UpdateMMR(self, user:discord.Member, mmr:int):
         for player in self.queuedPlayers:
@@ -381,6 +385,7 @@ class MatchService(object):
             except:
                 pass
 
+            messageID = self.matchesStarted[key].adminMessage.id
             try:
                 await self.matchesStarted[key].adminMessage.delete()
             except:
@@ -388,7 +393,7 @@ class MatchService(object):
 
             self.matchesStarted[key].matchMessage = None
             self.matchesStarted[key].adminMessage = None
-            self.recentlySwappedMatches.append(key)
+            self.recentlySwappedMessages.append(messageID)
 
             # Send an updated message
             message, adminMessage = await self.SendMatchMessages(ctx, self.matchesStarted[key])
@@ -396,13 +401,54 @@ class MatchService(object):
             self.matchesStarted[key].matchMessage = message
             self.matchesStarted[key].adminMessage = adminMessage
 
-            await self.WaitForMatchResult(ctx, key)
+            await self.WaitForMatchResult(ctx, adminMessage, key)
 
         elif (len(self.queuedPlayers) > 0):
             self.forcedMap = map
             await SendMessage(ctx, description='The next map will be {}.'.format(map), color=discord.Color.blue())
         else:
             await SendMessage(ctx, description='You can only force a map when there is a match running or players in the queue.', color=discord.Color.red())
+
+    async def ForceMapPool(self, ctx, pool:str):
+        if (len(self.matchesStarted) > 0):
+            key = list(self.matchesStarted.keys())[0]
+            self.matchesStarted[key].pool = pool 
+
+            selectedMap = self.matchesStarted[key].map
+
+            # If the current map isn't in the map pool, reroll the map
+            if (not self.botSettings.IsValidMapPoolMap(pool, selectedMap)):
+                await SendMessage(ctx, description='The map pool for Game #{} has been changed to {}. The map {} is not in the pool, re-rolling map!'.format(key, pool, selectedMap), color=discord.Color.blue())
+                await self.RerollMap(ctx)
+                return
+
+            await SendMessage(ctx, description='The map pool for Game #{} has been changed to {}.'.format(key, pool), color=discord.Color.blue())
+
+            # Delete the old message
+            try:
+                await self.matchesStarted[key].matchMessage.delete()
+            except:
+                pass
+
+            messageID = self.matchesStarted[key].adminMessage.id
+            try:
+                await self.matchesStarted[key].adminMessage.delete()
+            except:
+                pass
+
+            self.matchesStarted[key].matchMessage = None
+            self.matchesStarted[key].adminMessage = None
+            self.recentlySwappedMessages.append(messageID)
+
+            # Send an updated message
+            message, adminMessage = await self.SendMatchMessages(ctx, self.matchesStarted[key])
+
+            self.matchesStarted[key].matchMessage = message
+            self.matchesStarted[key].adminMessage = adminMessage
+
+            await self.WaitForMatchResult(ctx, adminMessage, key)
+        else:
+            await SendMessage(ctx, description='You can only force a map pool when there is a match running.', color=discord.Color.red())
 
     async def RerollMap(self, ctx):
         if (len(self.matchesStarted) > 0):
@@ -415,7 +461,7 @@ class MatchService(object):
                     enablePMCCOverride = True
                     break
 
-            selectedMap = self.botSettings.GetRandomMap(enablePMCCOverride).name
+            selectedMap = self.botSettings.GetRandomMap(self.matchesStarted[key].pool, enablePMCCOverride).name
 
             self.matchesStarted[key].map = selectedMap 
 
@@ -427,6 +473,7 @@ class MatchService(object):
             except:
                 pass
 
+            messageID = self.matchesStarted[key].adminMessage.id
             try:
                 await self.matchesStarted[key].adminMessage.delete()
             except:
@@ -434,7 +481,7 @@ class MatchService(object):
 
             self.matchesStarted[key].matchMessage = None
             self.matchesStarted[key].adminMessage = None
-            self.recentlySwappedMatches.append(key)
+            self.recentlySwappedMessages.append(messageID)
 
             # Send an updated message
             message, adminMessage = await self.SendMatchMessages(ctx, self.matchesStarted[key])
@@ -442,13 +489,13 @@ class MatchService(object):
             self.matchesStarted[key].matchMessage = message
             self.matchesStarted[key].adminMessage = adminMessage
 
-            await self.WaitForMatchResult(ctx, key)
+            await self.WaitForMatchResult(ctx, adminMessage, key)
         else:
             await SendMessage(ctx, description='You can only reroll a map when there is a match running.', color=discord.Color.red())
 
     async def SendMatchMessages(self, ctx, match):
         title = 'Game #{} Started'.format(match.uniqueID)
-        description = '**Creation Time:** {}\n**Map:** {}'.format(match.creationTime, match.map)
+        description = '**Creation Time:** {}\n**Map:** {}\n**Map Pool:** {}'.format(match.creationTime, match.map, 'None' if match.pool is None else match.pool)
         thumbnail = self.botSettings.GetMapThumbnail(match.map)
 
         team1Field = {}
@@ -522,14 +569,15 @@ class MatchService(object):
                 break
 
         id = self.botSettings.GetNextUniqueMatchID()
-        selectedMap = self.botSettings.GetRandomMap(enablePMCCOverride).name
+        selectedPool = self.botSettings.currentPool
+        selectedMap = self.botSettings.GetRandomMap(selectedPool, enablePMCCOverride).name
         creationTime = datetime.strftime(datetime.now(), '%d %b %Y %H:%M')
 
         if (self.forcedMap is not None):
             selectedMap = self.forcedMap
             self.forcedMap = None
 
-        newMatch = Match(id, self.queuedPlayers, selectedMap, creationTime)
+        newMatch = Match(id, self.queuedPlayers, selectedMap, selectedPool, creationTime)
         self.matchesStarted[id] = newMatch
         self.queuedPlayers.clear()
 
@@ -540,19 +588,34 @@ class MatchService(object):
         newMatch.matchMessage = message
         newMatch.adminMessage = adminMessage 
 
-        await self.WaitForMatchResult(ctx, id)
+        await self.WaitForMatchResult(ctx, adminMessage, id)
 
-    async def WaitForMatchResult(self, ctx, id):
+    async def WaitForMatchResult(self, ctx, adminMessage, id):
         def IsValidAdminAndEmoji(reaction, user):
             if (user.bot):
+                return False
+            # Clean up old messages
+            if (adminMessage and adminMessage.id in self.recentlySwappedMessages):
+                return True
+            if (adminMessage and reaction.message.id != adminMessage.id):
                 return False
             return self.botSettings.IsUserAdmin(user) and str(reaction.emoji) in self.reactions
 
         # Wait for an admin to report the results
         try:
-            reaction, user = await self.bot.wait_for('reaction_add', check=IsValidAdminAndEmoji)
+            # 3 hour timeout
+            reaction, user = await self.bot.wait_for('reaction_add', timeout=10800.0, check=IsValidAdminAndEmoji)
+        except asyncio.TimeoutError:
+            await self.CallMatch(ctx, self.bot.user, id, MatchResult.CANCELLED)
+            return
         except:
             print('Something has gone very wrong here')
+            return
+
+        if (adminMessage is None):
+            return
+        if (adminMessage.id in self.recentlySwappedMessages):
+            self.recentlySwappedMessages.remove(adminMessage.id)
             return
 
         # Team 1 Win
@@ -636,15 +699,11 @@ class MatchService(object):
         print('Match {} has been called as {}'.format(id, matchResult))
 
         if (id not in self.matchesStarted):
-            if (id in self.recentlySwappedMatches):
-                self.recentlySwappedMatches.remove(id)
-                return
-            else:
-                raise InvalidMatchID(id)
+            raise InvalidMatchID(id)
 
         title = 'Match Results: Game #{}'.format(id)
         footer = 'This match was called by {}'.format(user)
-        description = '**Creation Time:** {}\n**Map:** {}'.format(self.matchesStarted[id].creationTime, self.matchesStarted[id].map)
+        description = '**Creation Time:** {}\n**Map:** {}\n**Map Pool:** {}'.format(self.matchesStarted[id].creationTime, self.matchesStarted[id].map, 'None' if self.matchesStarted[id].pool is None else self.matchesStarted[id].pool)
         thumbnail = self.botSettings.GetMapThumbnail(self.matchesStarted[id].map)
 
         winnerTeam, winnerName, loserTeam, loserName = self.matchesStarted[id].GetTeamAndNames(matchResult)
@@ -666,7 +725,7 @@ class MatchService(object):
         winnerTeamData, winnerField = await self.GetTeamData(ctx, winnerTeam, winnerName, TeamResult.WIN)
         loserTeamData, loserField = await self.GetTeamData(ctx, loserTeam, loserName, TeamResult.LOSE)
 
-        self.botSettings.DeclareMapPlayed(self.matchesStarted[id].map)
+        self.botSettings.DeclareMapPlayed(self.matchesStarted[id].map, self.matchesStarted[id].pool)
 
         self.matchesStarted[id].StoreMatchHistoryData(winnerTeamData, loserTeamData, matchResult)
         del self.matchesStarted[id]

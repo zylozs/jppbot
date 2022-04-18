@@ -124,8 +124,10 @@ class MapPool(Document):
         self.save()
 
     def RemoveMap(self, map:str):
-        self.maps.remove(map)
-        self._maps.remove(map)
+        if (map in self.maps):
+            self.maps.remove(map)
+        if (map in self._maps):
+            self._maps.remove(map)
         self.save()
 
     def GetMapNames(self):
@@ -140,3 +142,11 @@ class MapPool(Document):
             names += _map + ', '
 
         return names[:-2]
+
+    def IsValidMap(self, map:str):
+        if (self.type == MapPoolType.CUSTOM.value):
+            return map in self.maps
+        elif (self.type == MapPoolType.EXCLUDE.value):
+            return map not in self.maps
+
+        return True 

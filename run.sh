@@ -2,7 +2,7 @@
 
 rm -rf jppbot
 
-pip3 install mongoengine discord.py
+pip3 install mongoengine discord.py emojis
 git clone https://github.com/zylozs/jppbot.git
 
 cd jppbot

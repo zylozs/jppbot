@@ -872,7 +872,7 @@ class AdminCommands(commands.Cog):
         match._result = newResult.value
         match.save()
 
-        description = '**Creation Time:** {}\n**Map:** {}'.format(match._creationTime, match._map)
+        description = '**Creation Time:** {}\n**Map:** {}\n**Map Pool:** {}'.format(match._creationTime, match._map, match._pool)
 
         if (newResult == MatchResult.TEAM1VICTORY):
             await SendChannelMessage(botSettings.resultsChannel, title=title, description=description, fields=[team1Field, team2Field], footer=footer, color=discord.Color.blue())
@@ -922,7 +922,53 @@ class AdminCommands(commands.Cog):
         if (not botSettings.DoesMapExist(map)):
             raise InvalidMap(map)
 
-        await matchService.ForceMap(ctx, botSettings.maps[map.lower()].name)
+        await matchService.ForceMap(ctx, botSettings.GetMapProperName(map))
+
+    @commands.command('setpool')
+    @IsValidChannel(ChannelType.LOBBY)
+    @IsAdmin()
+    async def OnSetCurrentMapPool(self, ctx, *poolName):
+        """Sets the current Map Pool
+           Sets the map pool to use for matchmaking. This will apply on all future matches that haven't already started.
+
+           **string:** <poolName>
+           The map pool you want to use for the matchmaking.
+        """
+        if (len(poolName) == 0):
+            raise EmptyName()
+
+        combinedPoolName = ' '.join(poolName)
+        print('Setting map pool to {}'.format(combinedPoolName))
+
+        if (not botSettings.DoesMapPoolExist(combinedPoolName)):
+            raise InvalidMapPool(combinedPoolName)
+
+        botSettings.SetCurrentMapPool(combinedPoolName)
+        await SendMessage(ctx, description='`{}` has been set as the current map pool.'.format(combinedPoolName), color=discord.Color.blue())
+
+    @commands.command('forcepool')
+    @IsValidChannel(ChannelType.LOBBY)
+    @IsAdmin()
+    async def OnForceMapPool(self, ctx, *poolName):
+        """Forces the current Map Pool
+           Sets the map pool to use for matchmaking. This will also override the existing map pool if a match has already started, including rerolling the map if the map is not in the new map pool.
+
+           **string:** <poolName>
+           The map pool you want to force for the matchmaking.
+        """
+
+        if (len(poolName) == 0):
+            raise EmptyName()
+
+        combinedPoolName = ' '.join(poolName)
+        print('Setting map pool to {}'.format(combinedPoolName))
+
+        if (not botSettings.DoesMapPoolExist(combinedPoolName)):
+            raise InvalidMapPool(combinedPoolName)
+
+        botSettings.SetCurrentMapPool(combinedPoolName)
+        await matchService.ForceMapPool(ctx, botSettings.GetMapPoolProperName(combinedPoolName))
+        await SendMessage(ctx, description='`{}` has been set as the current map pool.'.format(combinedPoolName), color=discord.Color.blue())
 
     @commands.command('rerollmap')
     @IsValidChannel(ChannelType.LOBBY)
@@ -993,6 +1039,8 @@ class AdminCommands(commands.Cog):
     @OnSetMapPoolType.error
     @OnAddMapPoolMap.error
     @OnRemoveMapPoolMap.error
+    @OnSetCurrentMapPool.error
+    @OnForceMapPool.error
     async def errorHandling(self, ctx, error):
         await HandleError(ctx, error)
 

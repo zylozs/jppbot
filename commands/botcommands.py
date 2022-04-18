@@ -291,7 +291,8 @@ class BotCommands(commands.Cog):
         if (len(fields) == 0):
             await SendMessage(ctx, description='There are currently no map pools.', color=discord.Color.blue())
         else:
-            await SendMessage(ctx, fields=fields, footer=footer, color=discord.Color.blue())
+            currentPool = 'None' if botSettings.currentPool is None else botSettings.currentPool
+            await SendMessage(ctx, description='The current map pool is: `{}`'.format(currentPool), fields=fields, footer=footer, color=discord.Color.blue())
 
     @commands.command(name='stats')
     async def OnShowStats(self, ctx):

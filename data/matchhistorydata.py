@@ -68,14 +68,16 @@ class MatchHistoryData(Document):
     _team2 = ListField(EmbeddedDocumentField(MatchHistoryPlayerData), max_length=5)
     _result = IntField(default=MatchResult.INVALID.value)
     _map = StringField(default='')
+    _pool = StringField(default='None')
     _creationTime = StringField(default='')
     _matchUniqueID = IntField(default=0)
 
-    def StoreData(self, team1, team2, result:MatchResult, selectedMap:str, creationTime:str, id:int):
+    def StoreData(self, team1, team2, result:MatchResult, selectedMap:str, pool, creationTime:str, id:int):
         self._team1 = team1 
         self._team2 = team2 
         self._result = result.value
         self._map = selectedMap
+        self._pool = 'None' if pool is None else pool
         self._creationTime = creationTime
         self._matchUniqueID = id
         self.save()

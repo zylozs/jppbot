@@ -1,14 +1,14 @@
 from data.playerdata import PlayerData
 from data.mmrrole import MMRRole 
 from data.matchhistorydata import MatchHistoryData
-from data.mappool import MapPool
+from data.mappool import MapPool, MapPoolType
 from services.matchservice import TeamResult, FakeUser
 from data.siegemap import SiegeMap
 from data.activitydata import ActivityData
 from data.quipdata import QuipData, QuipType
 from enum import Enum
 from discord.ext import commands
-from mongoengine import Document, IntField 
+from mongoengine import Document, IntField, StringField
 import discord
 import random
 import math
@@ -120,6 +120,7 @@ class BotSettings(Document):
     _registeredRole = IntField(default=-1)
     _adminRole = IntField(default=-1)
     _nextUniqueMatchID = IntField(default=0)
+    _currentPool = StringField(default='')
 
     # Settings
     guild = None # discord.Guild
@@ -135,6 +136,7 @@ class BotSettings(Document):
     mmrRoles = {}
     maps = {}
     pools = {}
+    currentPool = None
     activities = []
     quips = []
 
@@ -202,6 +204,10 @@ class BotSettings(Document):
         for pool in MapPool.objects:
             pool.Init()
             self.pools[pool.name.lower()] = pool
+
+        self.currentPool = self._currentPool
+        if (not self.DoesMapPoolExist(self.currentPool)):
+            self.currentPool = None
 
         # Activities
         # Type: Array<ActivityData>
@@ -351,14 +357,21 @@ class BotSettings(Document):
         self.maps[name.lower()] = _map
     
     def RemoveMap(self, name:str):
+        properName = self.GetMapProperName(name)
         self.maps[name.lower()].delete() # remove entry from database
         del self.maps[name.lower()]
+
+        for pool in self.pools.values():
+            pool.RemoveMap(properName)
 
     def SetMapThumbnail(self, name:str, thumbnailURL:str):
         self.maps[name.lower()].SetThumbnail(thumbnailURL)
 
     def GetMapProperName(self, name:str):
         return self.maps[name.lower()].name
+
+    def GetMapPoolProperName(self, name:str):
+        return self.pools[name.lower()].name
 
     def GetMapThumbnail(self, name:str):
         return self.maps[name.lower()].thumbnailURL
@@ -489,7 +502,10 @@ class BotSettings(Document):
         return name.lower() in self.pools
     
     def DoesMapPoolMapExist(self, poolName:str, mapName:str):
-        return mapName in self.pools[poolName].maps
+        return mapName in self.pools[poolName.lower()].maps
+
+    def IsValidMapPoolMap(self, poolName:str, mapName:str):
+        return self.pools[poolName.lower()].IsValidMap(mapName)
 
     def IsValidChannel(self, channel:discord.TextChannel, channelType:ChannelType, includeAdmin=True):
         returnType = False
@@ -515,9 +531,23 @@ class BotSettings(Document):
         self.save()
         return id
 
-    def GetRandomMap(self, enablePMCCOverride = False):
+    def GetRandomMap(self, selectedPool, enablePMCCOverride = False):
         # sort by times played. Less played maps towards the beginning and more played maps towards the end
         sortedMaps = sorted(self.maps.values(), key=lambda _map : _map.timesPlayed)
+
+        # Remove all maps that aren't in the pool
+        if (selectedPool is not None and self.DoesMapPoolExist(selectedPool)):
+            pool = self.pools[selectedPool.lower()]
+
+            # Do nothing, we want all maps
+            if (pool.type == MapPoolType.ALL.value):
+                pass
+            else:
+                tempMaps = []
+                for _map in sortedMaps:
+                    if (pool.IsValidMap(_map.name)):
+                        tempMaps.append(_map)
+                sortedMaps = tempMaps
 
         # random amongst the least played maps (numMaps / 3)
         numMapsToKeep = int(math.ceil(len(sortedMaps) / 3))
@@ -530,8 +560,12 @@ class BotSettings(Document):
 
         return random.choice(leastPlayedMaps)
 
-    def DeclareMapPlayed(self, mapName:str):
-        self.maps[mapName.lower()].IncrementTimesPlayed()
+    def DeclareMapPlayed(self, mapName:str, poolName):
+        if (self.DoesMapExist(mapName)):
+            self.maps[mapName.lower()].IncrementTimesPlayed()
+
+        if (poolName is not None and self.DoesMapPoolExist(poolName)):
+            self.pools[poolName.lower()].IncrementTimesPlayed()
 
     # Union[discord.User, FakeUser] user
     def DeclareWinner(self, user, mmrDelta=None):
@@ -684,3 +718,8 @@ class BotSettings(Document):
     def RemoveQuip(self, index:int):
         self.quips[index].delete() # remove entry from database
         self.quips.pop(index)
+        
+    def SetCurrentMapPool(self, poolName:str):
+        self.currentPool = self.GetMapPoolProperName(poolName)
+        self._currentPool = self.currentPool
+        self.save()

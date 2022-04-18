@@ -8,6 +8,7 @@ from utils.errorutils import HandleError
 from globals import *
 import inspect
 import discord
+import emojis
 
 class OwnerCommands(commands.Cog):
     def __init__(self, bot):
@@ -141,6 +142,8 @@ class OwnerCommands(commands.Cog):
             raise InvalidGuild()
 
         combinedQuip = ' '.join(quip)
+        combinedQuip = emojis.decode(combinedQuip)
+
         if (type == QuipType.GUILD_EMOJI and not discord.utils.get(botSettings.guild.emojis, name=combinedQuip)):
             raise InvalidGuildEmoji(combinedQuip)
 
