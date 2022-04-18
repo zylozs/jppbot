@@ -8,246 +8,249 @@ from utils.errorutils import HandleError
 from globals import *
 import inspect
 import discord
+import emojis
 
 class OwnerCommands(commands.Cog):
-	def __init__(self, bot):
-		self.bot = bot
+    def __init__(self, bot):
+        self.bot = bot
 
-	@commands.command(name='setnickname')
-	@IsPrivateMessage()
-	@IsOwner()
-	async def OnSetNickname(self, ctx, *name):
-		"""Allows the owner to change the nickname of the bot"""
-		if (len(name) == 0):
-			raise EmptyName()
+    @commands.command(name='setnickname')
+    @IsPrivateMessage()
+    @IsOwner()
+    async def OnSetNickname(self, ctx, *name):
+        """Allows the owner to change the nickname of the bot"""
+        if (len(name) == 0):
+            raise EmptyName()
 
-		if (botSettings.guild is None):
-			raise InvalidGuild()
+        if (botSettings.guild is None):
+            raise InvalidGuild()
 
-		combinedName = ' '.join(name)
-		member = botSettings.guild.get_member(self.bot.user.id)
-		await member.edit(nick=combinedName)
-		await SendMessage(ctx, description='Changing nickname to `{}`'.format(combinedName), color=discord.Color.blue())
+        combinedName = ' '.join(name)
+        member = botSettings.guild.get_member(self.bot.user.id)
+        await member.edit(nick=combinedName)
+        await SendMessage(ctx, description='Changing nickname to `{}`'.format(combinedName), color=discord.Color.blue())
 
-	@commands.command(name='addactivity')
-	@IsPrivateMessage()
-	@IsOwner()
-	async def OnAddActivity(self, ctx, type:ActivityType, *name):
-		"""Adds an activity for the bot to do
-		
-		   **string|int:** <type>
-		   The type of activity you want to have.
-		   Available results (not case sensitive):
-		   - 0 (Game)
-		   - 1 (Watching)
-		   - 2 (Listening)
-		   - game (Game)
-		   - g (Game)
-		   - watch (Watching)
-		   - w (Watching)
-		   - listen (Listening)
-		   - l (Listening)
+    @commands.command(name='addactivity')
+    @IsPrivateMessage()
+    @IsOwner()
+    async def OnAddActivity(self, ctx, type:ActivityType, *name):
+        """Adds an activity for the bot to do
+        
+           **string|int:** <type>
+           The type of activity you want to have.
+           Available results (not case sensitive):
+           - 0 (Game)
+           - 1 (Watching)
+           - 2 (Listening)
+           - game (Game)
+           - g (Game)
+           - watch (Watching)
+           - w (Watching)
+           - listen (Listening)
+           - l (Listening)
 
-		   **string:** <name>
-		   The name you want to show for the activity.
-		"""
-		if (type == ActivityType.INVALID):
-			raise InvalidActivityType(type)
+           **string:** <name>
+           The name you want to show for the activity.
+        """
+        if (type == ActivityType.INVALID):
+            raise InvalidActivityType(type)
 
-		if (len(name) == 0):
-			raise EmptyName()
+        if (len(name) == 0):
+            raise EmptyName()
 
-		combinedName = ' '.join(name)
-		botSettings.AddActivity(combinedName, type.value)
+        combinedName = ' '.join(name)
+        botSettings.AddActivity(combinedName, type.value)
 
-		await SendMessage(ctx, description='Activity `{}` added'.format(combinedName), color=discord.Color.blue())
+        await SendMessage(ctx, description='Activity `{}` added'.format(combinedName), color=discord.Color.blue())
 
-	@commands.command(name='activities')
-	@IsPrivateMessage()
-	@IsOwner()
-	async def OnShowActivities(self, ctx):
-		"""Shows the activities the bot can choose from"""
-		if (len(botSettings.activities) == 0):
-			raise NoActivities()
+    @commands.command(name='activities')
+    @IsPrivateMessage()
+    @IsOwner()
+    async def OnShowActivities(self, ctx):
+        """Shows the activities the bot can choose from"""
+        if (len(botSettings.activities) == 0):
+            raise NoActivities()
 
-		message = ''
-		index = 0
-		for activity in botSettings.activities:
-			type = await ActivityType.convert(ctx, activity.type)
-			message += '{}. [{}] `{}`\n'.format(index, type.name, activity.name)
-			index += 1
+        message = ''
+        index = 0
+        for activity in botSettings.activities:
+            type = await ActivityType.convert(ctx, activity.type)
+            message += '{}. [{}] `{}`\n'.format(index, type.name, activity.name)
+            index += 1
 
-		await SendMessage(ctx, description=message, color=discord.Color.blue())
+        await SendMessage(ctx, description=message, color=discord.Color.blue())
 
-	@commands.command(name='removeactivity')
-	@IsPrivateMessage()
-	@IsOwner()
-	async def OnRemoveActivity(self, ctx, index:int):
-		"""Removes an activity that the bot can do 
-		   
-		   **int:** <index>
-		   The index of the activity you want to remove.
-		"""
-		if (len(botSettings.activities) == 0):
-			raise NoActivities()
+    @commands.command(name='removeactivity')
+    @IsPrivateMessage()
+    @IsOwner()
+    async def OnRemoveActivity(self, ctx, index:int):
+        """Removes an activity that the bot can do 
+           
+           **int:** <index>
+           The index of the activity you want to remove.
+        """
+        if (len(botSettings.activities) == 0):
+            raise NoActivities()
 
-		if (index < 0 or index >= len(botSettings.activities)):
-			raise InvalidActivityIndex(index)
+        if (index < 0 or index >= len(botSettings.activities)):
+            raise InvalidActivityIndex(index)
 
-		activityName = botSettings.activities[index].name
-		botSettings.RemoveActivity(index)
+        activityName = botSettings.activities[index].name
+        botSettings.RemoveActivity(index)
 
-		await SendMessage(ctx, description='Activity `{}` removed'.format(activityName), color=discord.Color.blue())
+        await SendMessage(ctx, description='Activity `{}` removed'.format(activityName), color=discord.Color.blue())
 
-	@commands.command(name='addquip')
-	@IsPrivateMessage()
-	@IsOwner()
-	async def OnAddQuip(self, ctx, type:QuipType, *quip):
-		"""Adds a quip the bot can respond with when mentioned 
+    @commands.command(name='addquip')
+    @IsPrivateMessage()
+    @IsOwner()
+    async def OnAddQuip(self, ctx, type:QuipType, *quip):
+        """Adds a quip the bot can respond with when mentioned 
 
-			**string|int:** <type>
-		   The type of quip you want to have.
-		   Available results (not case sensitive):
-		   - 0 (Regular)
-		   - 1 (Guild Emoji)
-		   - 2 (Specific User)
-		   - regular (Regular)
-		   - r (Regular)
-		   - emoji (Guild Emoji)
-		   - e (Guild Emoji)
-		   - user (Specific User)
-		   - u (Specific User)
+            **string|int:** <type>
+           The type of quip you want to have.
+           Available results (not case sensitive):
+           - 0 (Regular)
+           - 1 (Guild Emoji)
+           - 2 (Specific User)
+           - regular (Regular)
+           - r (Regular)
+           - emoji (Guild Emoji)
+           - e (Guild Emoji)
+           - user (Specific User)
+           - u (Specific User)
 
-		   !! If Specific User Selected !!
-		   **discord.User:** <user>
-		   The discord user you want this quip to be specific to
+           !! If Specific User Selected !!
+           **discord.User:** <user>
+           The discord user you want this quip to be specific to
 
-		   **string:** <quip>
-		   The quip you want to add.
-		"""
-		if (type == QuipType.INVALID):
-			raise InvalidQuipType(type)
+           **string:** <quip>
+           The quip you want to add.
+        """
+        if (type == QuipType.INVALID):
+            raise InvalidQuipType(type)
 
-		if (type == QuipType.SPECIFIC_USER and len(quip) == 0):
-			raise commands.errors.MissingRequiredArgument(inspect.Parameter('user', inspect.Parameter.POSITIONAL_ONLY))
+        if (type == QuipType.SPECIFIC_USER and len(quip) == 0):
+            raise commands.errors.MissingRequiredArgument(inspect.Parameter('user', inspect.Parameter.POSITIONAL_ONLY))
 
-		if (type == QuipType.SPECIFIC_USER and len(quip) < 2):
-			raise EmptyQuip()
+        if (type == QuipType.SPECIFIC_USER and len(quip) < 2):
+            raise EmptyQuip()
 
-		if (len(quip) == 0):
-			raise EmptyQuip()
+        if (len(quip) == 0):
+            raise EmptyQuip()
 
-		if (botSettings.guild is None):
-			raise InvalidGuild()
+        if (botSettings.guild is None):
+            raise InvalidGuild()
 
-		combinedQuip = ' '.join(quip)
-		if (type == QuipType.GUILD_EMOJI and not discord.utils.get(botSettings.guild.emojis, name=combinedQuip)):
-			raise InvalidGuildEmoji(combinedQuip)
+        combinedQuip = ' '.join(quip)
+        combinedQuip = emojis.decode(combinedQuip)
 
-		user = None
-		additionalInfo = ' '
-		if (type == QuipType.SPECIFIC_USER):
-			converter = commands.UserConverter()
-			user = await converter.convert(ctx, quip[0])
-			additionalInfo = '[{}] '.format(user.mention)
-			quip = quip[1:]
-			combinedQuip = ' '.join(quip)
+        if (type == QuipType.GUILD_EMOJI and not discord.utils.get(botSettings.guild.emojis, name=combinedQuip)):
+            raise InvalidGuildEmoji(combinedQuip)
 
-		botSettings.AddQuip(combinedQuip, type.value, user)
+        user = None
+        additionalInfo = ' '
+        if (type == QuipType.SPECIFIC_USER):
+            converter = commands.UserConverter()
+            user = await converter.convert(ctx, quip[0])
+            additionalInfo = '[{}] '.format(user.mention)
+            quip = quip[1:]
+            combinedQuip = ' '.join(quip)
 
-		message = '[{}]{}Quip added `{}`'.format(type.name, additionalInfo, combinedQuip)
+        botSettings.AddQuip(combinedQuip, type.value, user)
 
-		await SendMessage(ctx, description=message, color=discord.Color.blue())
+        message = '[{}]{}Quip added `{}`'.format(type.name, additionalInfo, combinedQuip)
 
-	@commands.command(name='quips')
-	@IsPrivateMessage()
-	@IsOwner()
-	async def OnShowQuips(self, ctx):
-		"""Shows the quips the bot can respond with"""
-		if (len(botSettings.quips) == 0):
-			raise NoQuips()
+        await SendMessage(ctx, description=message, color=discord.Color.blue())
 
-		fields = []
-		heading = 'Quips'
+    @commands.command(name='quips')
+    @IsPrivateMessage()
+    @IsOwner()
+    async def OnShowQuips(self, ctx):
+        """Shows the quips the bot can respond with"""
+        if (len(botSettings.quips) == 0):
+            raise NoQuips()
 
-		def CreateField():
-			field = {}
-			field['name'] = heading
-			field['value'] = ''
-			field['inline'] = False 
+        fields = []
+        heading = 'Quips'
 
-			return field
+        def CreateField():
+            field = {}
+            field['name'] = heading
+            field['value'] = ''
+            field['inline'] = False 
 
-		field = CreateField() 
+            return field
 
-		message = ''
-		index = 0
-		for quip in botSettings.quips:
-			type = await QuipType.convert(ctx, quip.type)
-			additionalInfo = ' '
+        field = CreateField() 
 
-			if (type == QuipType.SPECIFIC_USER):
-				additionalInfo = '[{}] '.format(quip.user.mention if quip.user else quip._user)
+        message = ''
+        index = 0
+        for quip in botSettings.quips:
+            type = await QuipType.convert(ctx, quip.type)
+            additionalInfo = ' '
 
-			newText = '{}. [{}]{}`{}`\n'.format(index, type.name, additionalInfo, quip.quip)
-			
-			# if the message is too long, we need to add a new field
-			if (len(message) + len(newText) > 1024):
-				field['value'] += message
-				fields.append(field)
-				field = CreateField()
-				message = ''
+            if (type == QuipType.SPECIFIC_USER):
+                additionalInfo = '[{}] '.format(quip.user.mention if quip.user else quip._user)
 
-			message += newText
-			index += 1
+            newText = '{}. [{}]{}`{}`\n'.format(index, type.name, additionalInfo, quip.quip)
+            
+            # if the message is too long, we need to add a new field
+            if (len(message) + len(newText) > 1024):
+                field['value'] += message
+                fields.append(field)
+                field = CreateField()
+                message = ''
 
-		field['value'] += message
-		fields.append(field)
+            message += newText
+            index += 1
 
-		numPages = len(fields)
-		if (numPages > 1):
-			page = 0
-			for field in fields:
-				page += 1
-				field['name'] = '{}{}'.format(heading, ' [{}/{}]'.format(page, numPages))
+        field['value'] += message
+        fields.append(field)
 
-		await SendMessage(ctx, fields=fields, color=discord.Color.blue())
+        numPages = len(fields)
+        if (numPages > 1):
+            page = 0
+            for field in fields:
+                page += 1
+                field['name'] = '{}{}'.format(heading, ' [{}/{}]'.format(page, numPages))
 
-	@commands.command(name='removequip')
-	@IsPrivateMessage()
-	@IsOwner()
-	async def OnRemoveQuip(self, ctx, index:int):
-		"""Removes a quip 
-		   
-		   **int:** <index>
-		   The index of the quip you want to remove.
-		"""
-		if (len(botSettings.quips) == 0):
-			raise NoQuips()
+        await SendMessage(ctx, fields=fields, color=discord.Color.blue())
 
-		if (index < 0 or index >= len(botSettings.quips)):
-			raise InvalidQuipIndex(index)
+    @commands.command(name='removequip')
+    @IsPrivateMessage()
+    @IsOwner()
+    async def OnRemoveQuip(self, ctx, index:int):
+        """Removes a quip 
+           
+           **int:** <index>
+           The index of the quip you want to remove.
+        """
+        if (len(botSettings.quips) == 0):
+            raise NoQuips()
 
-		quip = botSettings.quips[index].quip
-		type = await QuipType.convert(ctx, botSettings.quips[index].type)
-		user = botSettings.quips[index].user
-		botSettings.RemoveQuip(index)
+        if (index < 0 or index >= len(botSettings.quips)):
+            raise InvalidQuipIndex(index)
 
-		additionalInfo = ' '
-		if (type == QuipType.SPECIFIC_USER and user):
-			additionalInfo = '[{}] '.format(user.mention)
+        quip = botSettings.quips[index].quip
+        type = await QuipType.convert(ctx, botSettings.quips[index].type)
+        user = botSettings.quips[index].user
+        botSettings.RemoveQuip(index)
 
-		message = '[{}]{}Quip removed `{}`'.format(type.name, additionalInfo, quip)
+        additionalInfo = ' '
+        if (type == QuipType.SPECIFIC_USER and user):
+            additionalInfo = '[{}] '.format(user.mention)
 
-		await SendMessage(ctx, description=message, color=discord.Color.blue())
+        message = '[{}]{}Quip removed `{}`'.format(type.name, additionalInfo, quip)
 
-	@OnSetNickname.error
-	@OnAddActivity.error
-	@OnShowActivities.error
-	@OnRemoveActivity.error
-	@OnAddQuip.error
-	@OnShowQuips.error
-	@OnRemoveQuip.error
-	async def errorHandling(self, ctx, error):
-		await HandleError(ctx, error)
+        await SendMessage(ctx, description=message, color=discord.Color.blue())
+
+    @OnSetNickname.error
+    @OnAddActivity.error
+    @OnShowActivities.error
+    @OnRemoveActivity.error
+    @OnAddQuip.error
+    @OnShowQuips.error
+    @OnRemoveQuip.error
+    async def errorHandling(self, ctx, error):
+        await HandleError(ctx, error)
 

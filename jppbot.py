@@ -4,22 +4,22 @@ import getopt
 
 # Get our commandline args if any
 try:
-	cmdOptions, cmdArgs = getopt.getopt(sys.argv[1:], 'i:p:t:', ['ip=', 'port=', 'token='])
+    cmdOptions, cmdArgs = getopt.getopt(sys.argv[1:], 'i:p:t:', ['ip=', 'port=', 'token='])
 except getopt.GetoptError:
-	print('Invalid arg usage')
-	sys.exit(2)
+    print('Invalid arg usage')
+    sys.exit(2)
 
 ip = 'localhost'
 port = '27017'
 token = ''
 
 for option, arg in cmdOptions:
-	if (option in ('-i', '--ip')):
-		ip = arg
-	elif (option in ('-p', '--port')):
-		port = arg
-	elif (option in ('-t', '--token')):
-		token = arg
+    if (option in ('-i', '--ip')):
+        ip = arg
+    elif (option in ('-p', '--port')):
+        port = arg
+    elif (option in ('-t', '--token')):
+        token = arg
 
 # Connect to our MongoDB
 print('Trying to connect to DB')
@@ -48,11 +48,11 @@ from utils.errorutils import HandleError, NoPrivateMessages
 
 @bot.check
 async def block_dms(ctx):
-	if (botSettings.IsUserOwner(ctx.author)):
-		return True 
-	if (ctx.guild is None):
-		raise NoPrivateMessages()
-	return ctx.guild is not None
+    if (botSettings.IsUserOwner(ctx.author)):
+        return True 
+    if (ctx.guild is None):
+        raise NoPrivateMessages()
+    return ctx.guild is not None
 
 matchService.Init(bot, botSettings)
 

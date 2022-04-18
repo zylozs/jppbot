@@ -3,8 +3,8 @@ from services.matchservice import MatchService
 
 # Load (or create) our settings
 if (len(BotSettings.objects) > 0):
-	botSettings = BotSettings.objects.first()
+    botSettings = BotSettings.objects.first()
 else:
-	botSettings = BotSettings()
+    botSettings = BotSettings()
 
 matchService = MatchService()
