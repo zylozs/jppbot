@@ -549,8 +549,8 @@ class BotSettings(Document):
                         tempMaps.append(_map)
                 sortedMaps = tempMaps
 
-        # random amongst the least played maps (numMaps / 3)
-        numMapsToKeep = int(math.ceil(len(sortedMaps) / 3))
+        # random amongst the least played maps (numMaps / 2)
+        numMapsToKeep = int(math.ceil(len(sortedMaps) / 2))
 
         leastPlayedMaps = sortedMaps[:numMapsToKeep]
 
