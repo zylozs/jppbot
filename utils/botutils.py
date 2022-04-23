@@ -1,4 +1,5 @@
-from data.botsettings import ChannelType, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner
+from data.botsettings import ChannelType, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, UserNotActive
+from data.playerdata import UserNotRegistered
 from utils.chatutils import SendMessage
 from globals import *
 from discord.ext import commands
@@ -33,6 +34,17 @@ def IsAdmin():
     async def predicate(ctx):
         if (not botSettings.IsUserAdmin(ctx.author)):
             raise UserNotAdmin(ctx.author)
+        return True
+    return commands.check(predicate)
+
+def IsActivePlayer():
+    async def predicate(ctx):
+        if (not botSettings.IsUserRegistered(ctx.author)):
+            raise UserNotRegistered(ctx.author)
+
+        player = botSettings.GetRegisteredPlayerByID(ctx.author.id)
+        if (player.matchesPlayed < 10):
+            raise UserNotActive(ctx.author)
         return True
     return commands.check(predicate)
 

@@ -6,6 +6,7 @@ from services.matchservice import TeamResult, FakeUser
 from data.siegemap import SiegeMap
 from data.activitydata import ActivityData
 from data.quipdata import QuipData, QuipType
+from data.stratroulettedata import StratRouletteData
 from enum import Enum
 from discord.ext import commands
 from mongoengine import Document, IntField, StringField
@@ -35,6 +36,11 @@ class UserNotOwner(commands.CommandError):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('The user {0.mention} is not the owner'.format(argument))
+
+class UserNotActive(commands.CommandError):
+    def __init__(self, argument):
+        self.argument = argument
+        super().__init__('The user {0.mention} is not active enough.'.format(argument))
 
 class GuildTextChannelMismatch(commands.BadArgument):
     def __init__(self, argument):
@@ -78,6 +84,11 @@ class InvalidQuipIndex(commands.BadArgument):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('{0} is not a valid quip index.'.format(argument))
+
+class InvalidStratIndex(commands.BadArgument):
+    def __init__(self, argument):
+        self.argument = argument
+        super().__init__('{0} is not a valid Strat Roulette strat index.'.format(argument))
 
 class ChannelType(Enum):
     LOBBY = "lobby"
@@ -139,6 +150,7 @@ class BotSettings(Document):
     currentPool = None
     activities = []
     quips = []
+    strats = []
 
     def _GetGuild(self, id, bot):
         if (len(bot.guilds) == 0):
@@ -224,6 +236,16 @@ class BotSettings(Document):
         for quip in QuipData.objects:
             quip.Init(bot)
             self.quips.append(quip)
+
+        # Strat Roulette Strats
+        # Type: Array<StratRouletteData>
+        self.strats = []
+
+        for strat in StratRouletteData.objects:
+            strat.Init()
+            self.strats.append(strat)
+
+        self.strats.sort(key=lambda strat : strat.type)
 
         print('Settings Loaded')
 
@@ -390,6 +412,16 @@ class BotSettings(Document):
 
     def RemoveMapPoolMap(self, poolName:str, mapName:str):
         self.pools[poolName.lower()].RemoveMap(mapName)
+
+    def AddStratRouletteStrat(self, type:int, title:str, strat:str):
+        newStrat = StratRouletteData()
+        newStrat.SetData(type, title, strat)
+        self.strats.append(newStrat)
+        self.strats.sort(key=lambda _strat : _strat.type)
+
+    def RemoveStratRouletteStrat(self, index:int):
+        self.strats[index].delete() # remove entry from database
+        self.strats.pop(index)
 
     def SetMMR(self, user:discord.User, mmr:int):
         return self.SetMMRByID(user.id, mmr)

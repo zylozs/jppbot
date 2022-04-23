@@ -44,6 +44,9 @@
     <Compile Include="data\siegemap.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="data\stratroulettedata.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="globals.py">
       <SubType>Code</SubType>
     </Compile>

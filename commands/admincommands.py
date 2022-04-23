@@ -1,10 +1,11 @@
 from discord.ext import commands
-from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch , InvalidGuild, RegisteredRoleUnitialized, EmptyName
+from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch , InvalidGuild, RegisteredRoleUnitialized, EmptyName, InvalidStratIndex
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, InvalidMatchResult, MatchIDNotFound, MatchResultIdentical, MatchResult
 from data.mmrrole import MMRRoleExists, MMRRoleRangeConflict, InvalidMMRRole, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap
 from data.mappool import MapPoolExists, InvalidMapPool, MapPoolType, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
+from data.stratroulettedata import StratRouletteData, StratRouletteTeamType, NoStratRouletteStrats
 from services.matchservice import TeamResult, PlayerNotQueuedOrInGame, PlayersNotSwapable
 from utils.botutils import IsAdmin, IsValidChannel, AddRoles, RemoveRoles
 from utils.errorutils import HandleError
@@ -498,7 +499,7 @@ class AdminCommands(commands.Cog):
         """Adds a map
 
            **string:** <name>
-           The name of the map you want to add. Casing is preserved, but name validation is not case sensitive.
+           The name of the map you want to add. Casing is preserved, but name validation is not case sensitive. If you want multiple words, surround them with double quotes "like this".
 
            **string:** <thumbnailURL> (Optional)
            **Default value:** ''
@@ -519,7 +520,7 @@ class AdminCommands(commands.Cog):
         """Removes a map
         
            **string:** <name>
-           The name of the map you want to remove. This is not case sensitive. 
+           The name of the map you want to remove. This is not case sensitive.  If you want multiple words, surround them with double quotes "like this".
         """
         print('Removing map: {}'.format(name))
 
@@ -560,10 +561,13 @@ class AdminCommands(commands.Cog):
            Available results (not case sensitive):
            - 0 (All maps)
            - 1 (Custom map list)
+           - 2 (All maps excluding specified)
            - all (All maps)
            - a (All maps)
            - custom (Custom map list)
            - c (Custom map list)
+           - exclude (All maps excluding specified)
+           - e (All maps excluding specified)
 
            **string:** <name>
            The name of the map pool you want to add. Casing is preserved, but name validation is not case sensitive.
@@ -647,10 +651,10 @@ class AdminCommands(commands.Cog):
         """Adds a map to a map pool
 
            **string:** <mapName>
-           The name of the map you want to add. This is not case sensitive.
+           The name of the map you want to add. This is not case sensitive. If you want multiple words, surround them with double quotes "like this".
 
            **string:** <poolName>
-           The name of the map pool you want to add it to. This is not case sensitive.
+           The name of the map pool you want to add it to. This is not case sensitive. No quotes needed.
         """
 
         if (not botSettings.DoesMapExist(mapName)):
@@ -679,10 +683,10 @@ class AdminCommands(commands.Cog):
         """Removes a map from a map pool
 
            **string:** <mapName>
-           The name of the map you want to remove. This is not case sensitive.
+           The name of the map you want to remove. This is not case sensitive. If you want multiple words, surround them with double quotes "like this"..
 
            **string:** <poolName>
-           The name of the map pool you want to remove it from. This is not case sensitive.
+           The name of the map pool you want to remove it from. This is not case sensitive. No quotes needed.
         """
         if (not botSettings.DoesMapExist(mapName)):
             raise InvalidMap(mapName)
@@ -910,19 +914,23 @@ class AdminCommands(commands.Cog):
     @commands.command('forcemap')
     @IsValidChannel(ChannelType.LOBBY)
     @IsAdmin()
-    async def OnForceMap(self, ctx, map:str):
+    async def OnForceMap(self, ctx, *map):
         """Forces the next/current map
            If there is nobody in queue and there is no match currently being played, this command is ignored. Priority is given to changing the current map if possible and changing the next map second if not.
 
            **string:** <map>
-           The map you want to force as the next map (or current map if the match has already started).
+           The map you want to force as the next map (or current map if the match has already started). This is not case sensitive. No quotes needed.
         """
-        print('Forcing map to {}'.format(map))
+        if (len(map) == 0):
+            raise EmptyName()
 
-        if (not botSettings.DoesMapExist(map)):
-            raise InvalidMap(map)
+        combinedMap = ' '.join(map)
+        print('Forcing map to {}'.format(combinedMap))
 
-        await matchService.ForceMap(ctx, botSettings.GetMapProperName(map))
+        if (not botSettings.DoesMapExist(combinedMap)):
+            raise InvalidMap(combinedMap)
+
+        await matchService.ForceMap(ctx, botSettings.GetMapProperName(combinedMap))
 
     @commands.command('setpool')
     @IsValidChannel(ChannelType.LOBBY)
@@ -954,7 +962,7 @@ class AdminCommands(commands.Cog):
            Sets the map pool to use for matchmaking. This will also override the existing map pool if a match has already started, including rerolling the map if the map is not in the new map pool.
 
            **string:** <poolName>
-           The map pool you want to force for the matchmaking.
+           The map pool you want to force for the matchmaking. This is not case sensitive. No quotes needed.
         """
 
         if (len(poolName) == 0):
@@ -1009,6 +1017,29 @@ class AdminCommands(commands.Cog):
 
         # Now try to swap
         await matchService.SwapPlayers(ctx, player1, player2)
+ 
+    @commands.command('removestrat')
+    @IsValidChannel(ChannelType.ADMIN)
+    @IsAdmin()
+    async def OnRemoveStratRouletteStrat(self, ctx, index:int):
+        """Removes a Strat Roulette strat 
+           
+           **int:** <index>
+           The index of the strat you want to remove.
+        """
+        if (len(botSettings.strats) == 0):
+            raise NoStratRouletteStrats()
+
+        if (index < 0 or index >= len(botSettings.strats)):
+            raise InvalidStratIndex(index)
+
+        strat = botSettings.strats[index].strat
+        title = botSettings.strats[index].title
+        type = await StratRouletteTeamType.convert(ctx, botSettings.strats[index].type)
+        botSettings.RemoveStratRouletteStrat(index)
+
+        message = '[{}] Strat Removed `[{}] {}`'.format(type.name, title, strat)
+        await SendMessage(ctx, description=message, color=discord.Color.blue())
 
     @OnQuit.error
     @OnClearQueue.error
@@ -1041,6 +1072,7 @@ class AdminCommands(commands.Cog):
     @OnRemoveMapPoolMap.error
     @OnSetCurrentMapPool.error
     @OnForceMapPool.error
+    @OnRemoveStratRouletteStrat.error
     async def errorHandling(self, ctx, error):
         await HandleError(ctx, error)
 
