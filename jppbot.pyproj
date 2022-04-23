@@ -34,9 +34,13 @@
     <Compile Include="commands\helpcommand.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="commands\ownercommands.py" />
+    <Compile Include="data\activitydata.py" />
     <Compile Include="data\botsettings.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="data\mappool.py" />
+    <Compile Include="data\quipdata.py" />
     <Compile Include="data\siegemap.py">
       <SubType>Code</SubType>
     </Compile>
