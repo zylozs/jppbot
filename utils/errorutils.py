@@ -1,4 +1,4 @@
-from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, EmptyName, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip
+from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, EmptyName, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip, InvalidStratIndex, UserNotActive
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap 
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
@@ -6,6 +6,7 @@ from data.matchhistorydata import InvalidMatchResult, MatchIDNotFound, MatchResu
 from data.activitydata import InvalidActivityType, NoActivities
 from data.quipdata import NoQuips, InvalidQuipType, InvalidGuildEmoji
 from data.mappool import InvalidMapPool, MapPoolExists, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
+from data.stratroulettedata import InvalidStratRouletteTeamType, NoStratRouletteStrats, EmptyStrat
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued, PlayerNotQueuedOrInGame, PlayersNotSwapable, PlayerSwapFailed
 from utils.chatutils import SendMessage
 
@@ -57,6 +58,9 @@ async def HandleError(ctx, error):
     elif (isinstance(error, InvalidQuipIndex)):
         await SendMessage(ctx, description='{0} is not a valid quip index.'.format(error.argument), color=discord.Color.red())
 
+    elif (isinstance(error, InvalidStratIndex)):
+        await SendMessage(ctx, description='{0} is not a valid Strat Roulette strat index.'.format(error.argument), color=discord.Color.red())
+
     elif (isinstance(error, InvalidGuildEmoji)):
         await SendMessage(ctx, description='{0} is not a valid guild emoji.'.format(error.argument), color=discord.Color.red())
 
@@ -99,11 +103,17 @@ async def HandleError(ctx, error):
     elif (isinstance(error, InvalidQuipType)):
         await SendMessage(ctx, description='`{}` is not a valid Quip Type.'.format(error.argument), color=discord.Color.red())
 
+    elif (isinstance(error, InvalidStratRouletteTeamType)):
+        await SendMessage(ctx, description='`{}` is not a valid Strat Roulette Team Type.'.format(error.argument), color=discord.Color.red())
+
     elif (isinstance(error, NoMMRRoles)):
         await SendMessage(ctx, description='There are no ranks.', color=discord.Color.red())
 
     elif (isinstance(error, NoQuips)):
         await SendMessage(ctx, description='There are no quips yet.', color=discord.Color.red())
+
+    elif (isinstance(error, NoStratRouletteStrats)):
+        await SendMessage(ctx, description='There are no Strat Roulette strats yet.', color=discord.Color.red())
 
     elif (isinstance(error, NoActivities)):
         await SendMessage(ctx, description='There are no activities yet.', color=discord.Color.red())
@@ -147,11 +157,17 @@ async def HandleError(ctx, error):
     elif (isinstance(error, UserNotOwner)):
         await SendMessage(ctx, description='You do not have permission to run this command.', color=discord.Color.red())
 
+    elif (isinstance(error, UserNotActive)):
+        await SendMessage(ctx, description='You do not have permission to run this command.', color=discord.Color.red())
+
     elif (isinstance(error, EmptyName)):
         await SendMessage(ctx, description='An empty string is not a valid name.', color=discord.Color.red())
 
     elif (isinstance(error, EmptyQuip)):
         await SendMessage(ctx, description='An empty string is not a valid quip.', color=discord.Color.red())
+
+    elif (isinstance(error, EmptyStrat)):
+        await SendMessage(ctx, description='An empty string is not a valid Strat Roulette strat.', color=discord.Color.red())
 
     elif (isinstance(error, NoPrivateMessages)):
         await SendMessage(ctx, description='You can\'t run commands in dms.', color=discord.Color.red())

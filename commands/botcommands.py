@@ -3,9 +3,10 @@ from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, MatchResult
 from data.quipdata import QuipType
 from data.mappool import MapPoolType
+from data.stratroulettedata import StratRouletteTeamType, NoStratRouletteStrats, EmptyStrat, InvalidStratRouletteTeamType
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued
 from utils.chatutils import SendMessage
-from utils.botutils import IsValidChannel
+from utils.botutils import IsValidChannel, IsActivePlayer
 from utils.errorutils import HandleError
 from globals import *
 from discord.ext import commands, tasks
@@ -294,6 +295,89 @@ class BotCommands(commands.Cog):
             currentPool = 'None' if botSettings.currentPool is None else botSettings.currentPool
             await SendMessage(ctx, description='The current map pool is: `{}`'.format(currentPool), fields=fields, footer=footer, color=discord.Color.blue())
 
+    @commands.command('addstrat')
+    @IsActivePlayer()
+    async def OnAddStratRouletteStrat(self, ctx, type:StratRouletteTeamType, title:str, *strat):
+        """Adds a strat to the Strat Roulette pool
+
+           **string|int:** <type>
+           The type of strat you want to have.
+           Available results (not case sensitive):
+           - 0 (Attack)
+           - 1 (Defense)
+           - 2 (Both)
+           - attack (Attack)
+           - a (Attack)
+           - defense (Defense)
+           - d (Defense)
+           - both (Both)
+           - b (Both)
+
+           **string:** <title>
+           The name of the strat you want to add. If you want multiple words, surround them with double quotes "like this".
+
+           **string:** <strat>
+           The strat you want to add. No quotes needed.
+        """
+        if (type == StratRouletteTeamType.INVALID):
+            raise InvalidStratRouletteTeamType(type)
+
+        if (len(strat) == 0):
+            raise EmptyStrat()
+
+        combinedStrat = ' '.join(strat)
+        botSettings.AddStratRouletteStrat(type.value, title, combinedStrat)
+        message = '[{}] Strat Added `[{}] {}`'.format(type.name, title, combinedStrat)
+        await SendMessage(ctx, description=message, color=discord.Color.blue())
+
+    @commands.command(name='strats')
+    async def OnShowStratRouletteStrats(self, ctx):
+        """Shows the Strat Roulette strats available"""
+
+        if (len(botSettings.strats) == 0):
+            raise NoStratRouletteStrats()
+
+        fields = []
+        heading = 'Strat Roulette Strats'
+
+        def CreateField():
+            field = {}
+            field['name'] = heading
+            field['value'] = ''
+            field['inline'] = False 
+
+            return field
+
+        field = CreateField() 
+
+        message = ''
+        index = 0
+        for strat in botSettings.strats:
+            type = await StratRouletteTeamType.convert(ctx, strat.type)
+
+            newText = '{}. [{}] `[{}] {}\n`'.format(index, type.name, strat.title, strat.strat)
+
+            if (len(message) + len(newText) > 1024):
+                field['value'] += message
+                fields.append(field)
+                field = CreateField()
+                message = ''
+
+            message += newText
+            index += 1
+
+        field['value'] += message
+        fields.append(field)
+
+        numPages = len(fields)
+        if (numPages > 1):
+            page = 0
+            for field in fields:
+                page += 1
+                field['name'] = '{}{}'.format(heading, ' [{}/{}]'.format(page, numPages))
+
+        await SendMessage(ctx, fields=fields, color=discord.Color.blue())
+
     @commands.command(name='stats')
     async def OnShowStats(self, ctx):
         """Shows your stats"""
@@ -522,5 +606,7 @@ class BotCommands(commands.Cog):
     @OnUpdateStatus.error
     @OnSlapUser.error
     @OnShowMapPools.error
+    @OnAddStratRouletteStrat.error
+    @OnShowStratRouletteStrats.error
     async def errorHandling(self, ctx, error):
         await HandleError(ctx, error)
