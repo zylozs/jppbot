@@ -1,7 +1,11 @@
 import discord
 
 async def SendMessage(ctx, **kwargs):
-   return await SendChannelMessage(ctx.channel, **kwargs) 
+   return await SendChannelMessage(ctx.channel, **kwargs)
+
+async def SendMessages(ctx, messages, **kwargs):
+    for message in messages:
+        await SendChannelMessage(ctx.channel, fields=message, **kwargs)
 
 async def SendChannelMessage(channel:discord.TextChannel, **kwargs):
     messageEmbed = discord.Embed(**kwargs)
