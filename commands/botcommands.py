@@ -5,7 +5,7 @@ from data.quipdata import QuipType
 from data.mappool import MapPoolType
 from data.stratroulettedata import StratRouletteTeamType, NoStratRouletteStrats, EmptyStrat, InvalidStratRouletteTeamType
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued
-from utils.chatutils import SendMessage
+from utils.chatutils import SendMessage, SendMessages
 from utils.botutils import IsValidChannel, IsActivePlayer
 from utils.errorutils import HandleError
 from globals import *
@@ -337,6 +337,7 @@ class BotCommands(commands.Cog):
         if (len(botSettings.strats) == 0):
             raise NoStratRouletteStrats()
 
+        messages = []
         fields = []
         heading = 'Strat Roulette Strats'
 
@@ -351,32 +352,64 @@ class BotCommands(commands.Cog):
         field = CreateField() 
 
         message = ''
+        currentMessageSize = 0
         index = 0
+        numPages = 0
+        attackerStrats = 0
+        defenderStrats = 0
+        bothStrats = 0
         for strat in botSettings.strats:
             type = await StratRouletteTeamType.convert(ctx, strat.type)
 
+            if (type == StratRouletteTeamType.ATTACKER):
+                attackerStrats += 1
+            elif (type == StratRouletteTeamType.DEFENDER):
+                defenderStrats += 1
+            elif (type == StratRouletteTeamType.BOTH):
+                bothStrats += 1
+
             newText = '{}. [{}] `[{}] {}\n`'.format(index, type.name, strat.title, strat.strat)
+
+            # Intentionally stopping short of the 6000 character limit since
+            # the limit is encompassing the entire embed.
+            # This gives the message wiggle room to guarantee it doesn't pass
+            # the limit.
+            if (currentMessageSize + len(newText) > 5500):
+                field['value'] += message
+                fields.append(field)
+                field = CreateField()
+                message = ''
+                messages.append(fields)
+                fields = []
+                currentMessageSize = 0
+                numPages += 1
 
             if (len(message) + len(newText) > 1024):
                 field['value'] += message
                 fields.append(field)
                 field = CreateField()
                 message = ''
+                numPages += 1
 
             message += newText
+            currentMessageSize += len(newText)
             index += 1
 
         field['value'] += message
         fields.append(field)
+        numPages += 1
 
-        numPages = len(fields)
+        messages.append(fields)
+
         if (numPages > 1):
             page = 0
-            for field in fields:
-                page += 1
-                field['name'] = '{}{}'.format(heading, ' [{}/{}]'.format(page, numPages))
+            for _message in messages:
+                for field in _message:
+                    page += 1
+                    field['name'] = '{}{}'.format(heading, ' [{}/{}]'.format(page, numPages))
 
-        await SendMessage(ctx, fields=fields, color=discord.Color.blue())
+        footerStr = '{} strats available. {} Attacker, {} Defender, {} Both'.format(index, attackerStrats, defenderStrats, bothStrats)
+        await SendMessages(ctx, messages, footer=footerStr, color=discord.Color.blue())
 
     @commands.command(name='stats')
     async def OnShowStats(self, ctx):
