@@ -98,7 +98,8 @@ class HelpCommand(commands.DefaultHelpCommand):
 
 
         if not commands:
-            return CreateField(startPage=False)
+            fields.append(CreateField(startPage=False))
+            return fields
 
         max_size = max_size or self.get_max_size(commands)
         numCommands = len(commands)

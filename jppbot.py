@@ -33,15 +33,20 @@ from commands.helpcommand import HelpCommand
 from discord.ext import commands
 import discord
 
+class JPPBot(commands.Bot):
+    async def setup_hook(self) -> None:
+        await self.add_cog(AdminCommands(self))
+        await self.add_cog(BotCommands(self))
+        await self.add_cog(OwnerCommands(self))
+        self.help_command = HelpCommand()
+        
+
 intents = discord.Intents.default()
 intents.members = True
 intents.voice_states = True
 intents.guilds = True
-bot = commands.Bot(command_prefix='!', description='A bot to host the weekly JPP sessions.', intents=intents)
-bot.add_cog(AdminCommands(bot))
-bot.add_cog(BotCommands(bot))
-bot.add_cog(OwnerCommands(bot))
-bot.help_command = HelpCommand()
+intents.message_content = True
+bot = JPPBot(command_prefix='!', description='A bot to host the weekly JPP sessions.', intents=intents)
 
 # We dont want people dming the bot to run commands
 from utils.errorutils import HandleError, NoPrivateMessages

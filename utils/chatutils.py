@@ -8,7 +8,25 @@ async def SendMessages(ctx, messages, **kwargs):
         await SendChannelMessage(ctx.channel, fields=message, **kwargs)
 
 async def SendChannelMessage(channel:discord.TextChannel, **kwargs):
-    messageEmbed = discord.Embed(**kwargs)
+    messageEmbed = discord.Embed()
+
+    if 'title' in kwargs:
+        messageEmbed.title = kwargs['title']
+
+    if 'type' in kwargs:
+        messageEmbed.type = kwargs['type']
+
+    if 'description' in kwargs:
+        messageEmbed.description = kwargs['description']
+
+    if 'url' in kwargs:
+        messageEmbed.url = kwargs['url']
+
+    if 'timestamp' in kwargs:
+        messageEmbed.timestamp = kwargs['timestamp']
+
+    if 'color' in kwargs:
+        messageEmbed.color = kwargs['color']
 
     if 'fields' in kwargs:
         for field in kwargs['fields']: 

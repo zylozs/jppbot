@@ -3,3 +3,8 @@
 /bin
 /__pycache__
 /D-Repos-jppbot-jppbot.index
+
+.vscode/
+
+*.code-workspace
+.venv/
