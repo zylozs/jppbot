@@ -55,7 +55,12 @@ async def SendMessages(interaction:discord.Interaction, messages, **kwargs):
         await SendChannelMessage(interaction.channel, fields=message, **kwargs)
 
 async def SendChannelMessage(channel:discord.TextChannel, **kwargs):
-    message = await channel.send(embed=CreateEmbed(**kwargs))
+    view = None
+
+    if 'view' in kwargs:
+        view = kwargs['view']
+
+    message = await channel.send(embed=CreateEmbed(**kwargs), view=view)
 
     if 'reactions' in kwargs:
         for reaction in kwargs['reactions']:

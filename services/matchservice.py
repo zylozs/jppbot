@@ -71,6 +71,7 @@ class Match(object):
     uniqueID = 0
     matchMessage = None
     adminMessage = None
+    resultsView = None
 
     def __init__(self, id, players, map, pool, creationTime):
         self.uniqueID = id
@@ -184,17 +185,70 @@ class TeamResult(Enum):
         else:
             return returnType
 
+class MatchResultView(discord.ui.View):
+    def __init__(self, botSettings):
+        # 3 hour timeout by default
+        super().__init__(timeout=10800.0)
+        self.result = MatchResult.INVALID
+        self.user = None
+        self.message = None
+        self.botSettings = botSettings
+
+    async def UpdateView(self, interaction:discord.Interaction, button:discord.ui.Button):
+        for child in self.children:
+            if child is not button:
+                self.remove_item(child)
+            else:
+                child.disabled = True
+
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label='Blue Win 🟦', style=discord.ButtonStyle.grey)
+    async def CallForBlue(self, interaction:discord.Interaction, button:discord.ui.Button):
+        await self.UpdateView(interaction, button)
+
+        self.result = MatchResult.TEAM1VICTORY
+        self.user = interaction.user
+        self.stop()
+
+    @discord.ui.button(label='Orange Win 🟧', style=discord.ButtonStyle.grey)
+    async def CallForOrange(self, interaction:discord.Interaction, button:discord.ui.Button):
+        await self.UpdateView(interaction, button)
+
+        self.result = MatchResult.TEAM2VICTORY
+        self.user = interaction.user
+        self.stop()
+
+    @discord.ui.button(label='Cancel ❎', style=discord.ButtonStyle.grey)
+    async def CancelMatch(self, interaction:discord.Interaction, button:discord.ui.Button):
+        await self.UpdateView(interaction, button)
+
+        self.result = MatchResult.CANCELLED
+        self.user = interaction.user
+        self.stop()
+
+    async def interaction_check(self, interaction:discord.Interaction):
+        return self.botSettings.IsUserAdmin(interaction.user)
+
+    async def on_timeout(self):
+        for child in self.children:
+            if child.label != 'Cancel ❎':
+                self.remove_item(child)
+            else:
+                child.disabled = True
+        
+        if self.message is not None:
+            await self.message.edit(view=self)
+
+        self.result = MatchResult.CANCELLED
+        self.user = None
+
 class MatchService(object):
     queuedPlayers = []
-    recentlySwappedMessages = []
     matchesStarted = {}
     bot = None
     botSettings = None
     forcedMap = None
-
-    # To get these to work, you need to get the <:emoji_name:emoji_id>. The easiest way to do that is to type this into discord
-    # and copy what it gives you in the message: \:YourEmoji:
-    reactions = ['🟦', '🟧', '❎']
 
     def Init(self, bot, botSettings):
         self.bot = bot
@@ -341,7 +395,6 @@ class MatchService(object):
 
         self.matchesStarted[matchID].matchMessage = None
         self.matchesStarted[matchID].adminMessage = None
-        self.recentlySwappedMessages.append(messageID)
 
         # Remove the queued player
         mmr = 0
@@ -363,13 +416,16 @@ class MatchService(object):
 
         self.matchesStarted[matchID].BalanceTeams()
 
+        self.matchesStarted[matchID].resultsView.stop()
+        self.matchesStarted[matchID].resultsView = MatchResultView(self.botSettings)
+
         await SendMessage(interaction, description='{0.mention} has been swapped with {1.mention}!'.format(queuedPlayer.user, matchPlayer), color=discord.Color.blue())
         message, adminMessage = await self.SendMatchMessages(self.matchesStarted[matchID])
 
         self.matchesStarted[matchID].matchMessage = message
         self.matchesStarted[matchID].adminMessage = adminMessage
 
-        await self.WaitForMatchResult(adminMessage, matchID)
+        await self.WaitForMatchResult(matchID)
 
     def UpdateMMR(self, user:discord.Member, mmr:int):
         for player in self.queuedPlayers:
@@ -398,7 +454,9 @@ class MatchService(object):
 
             self.matchesStarted[key].matchMessage = None
             self.matchesStarted[key].adminMessage = None
-            self.recentlySwappedMessages.append(messageID)
+
+            self.matchesStarted[key].resultsView.stop()
+            self.matchesStarted[key].resultsView = MatchResultView(self.botSettings)
 
             # Send an updated message
             message, adminMessage = await self.SendMatchMessages(self.matchesStarted[key])
@@ -406,7 +464,7 @@ class MatchService(object):
             self.matchesStarted[key].matchMessage = message
             self.matchesStarted[key].adminMessage = adminMessage
 
-            await self.WaitForMatchResult(adminMessage, key)
+            await self.WaitForMatchResult(key)
 
         elif (len(self.queuedPlayers) > 0):
             self.forcedMap = map
@@ -445,7 +503,9 @@ class MatchService(object):
 
         self.matchesStarted[key].matchMessage = None
         self.matchesStarted[key].adminMessage = None
-        self.recentlySwappedMessages.append(messageID)
+
+        self.matchesStarted[key].resultsView.stop()
+        self.matchesStarted[key].resultsView = MatchResultView(self.botSettings)
 
         # Send an updated message
         message, adminMessage = await self.SendMatchMessages(self.matchesStarted[key])
@@ -453,7 +513,7 @@ class MatchService(object):
         self.matchesStarted[key].matchMessage = message
         self.matchesStarted[key].adminMessage = adminMessage
 
-        await self.WaitForMatchResult(adminMessage, key)
+        await self.WaitForMatchResult(key)
 
     async def RerollMap(self, interaction:discord.Interaction, useInteraction:bool):
         key = list(self.matchesStarted.keys())[0]
@@ -490,7 +550,9 @@ class MatchService(object):
 
         self.matchesStarted[key].matchMessage = None
         self.matchesStarted[key].adminMessage = None
-        self.recentlySwappedMessages.append(messageID)
+
+        self.matchesStarted[key].resultsView.stop()
+        self.matchesStarted[key].resultsView = MatchResultView(self.botSettings)
 
         # Send an updated message
         message, adminMessage = await self.SendMatchMessages(self.matchesStarted[key])
@@ -498,7 +560,7 @@ class MatchService(object):
         self.matchesStarted[key].matchMessage = message
         self.matchesStarted[key].adminMessage = adminMessage
 
-        await self.WaitForMatchResult(adminMessage, key)
+        await self.WaitForMatchResult(key)
 
     async def SendMatchMessages(self, match):
         title = 'Game #{} Started'.format(match.uniqueID)
@@ -555,7 +617,9 @@ class MatchService(object):
         adminField['inline'] = False	
 
         message = await SendChannelMessage(self.botSettings.lobbyChannel, title=title, description=description, thumbnail=thumbnail, fields=[team1Field, team2Field], color=discord.Color.blue())
-        adminMessage = await SendChannelMessage(self.botSettings.reportChannel, title=title, description=description, thumbnail=thumbnail, fields=[team1Field, team2Field, adminField], reactions=self.reactions)
+        adminMessage = await SendChannelMessage(self.botSettings.reportChannel, title=title, description=description, thumbnail=thumbnail, fields=[team1Field, team2Field, adminField], view=match.resultsView)
+
+        match.resultsView.message = adminMessage
 
         return message, adminMessage
 
@@ -589,54 +653,38 @@ class MatchService(object):
         self.queuedPlayers.clear()
 
         newMatch.BalanceTeams()
+
+        newMatch.resultsView = MatchResultView(self.botSettings)
     
         message, adminMessage = await self.SendMatchMessages(newMatch)
         
         newMatch.matchMessage = message
         newMatch.adminMessage = adminMessage 
 
-        await self.WaitForMatchResult(adminMessage, id)
+        await self.WaitForMatchResult(id)
 
-    async def WaitForMatchResult(self, adminMessage, id):
-        def IsValidAdminAndEmoji(reaction, user):
-            if (user.bot):
-                return False
-            # Clean up old messages
-            if (adminMessage and adminMessage.id in self.recentlySwappedMessages):
-                return True
-            if (adminMessage and reaction.message.id != adminMessage.id):
-                return False
-            return self.botSettings.IsUserAdmin(user) and str(reaction.emoji) in self.reactions
-
+    async def WaitForMatchResult(self, id):
+        view = self.matchesStarted[id].resultsView
         # Wait for an admin to report the results
         try:
-            # 3 hour timeout
-            reaction, user = await self.bot.wait_for('reaction_add', timeout=10800.0, check=IsValidAdminAndEmoji)
-        except asyncio.TimeoutError:
-            await self.CallMatch(self.bot.user, id, MatchResult.CANCELLED)
-            return
+            timedOut = await view.wait()
         except:
             print('Something has gone very wrong here')
             return
 
-        if (adminMessage is None):
-            return
-        if (adminMessage.id in self.recentlySwappedMessages):
-            self.recentlySwappedMessages.remove(adminMessage.id)
+        if (timedOut):
+            await self.CallMatch(self.bot.user, id, MatchResult.CANCELLED)
             return
 
-        # Team 1 Win
-        emoji = str(reaction.emoji)
-        if (emoji == self.reactions[0]):
-            await self.CallMatch(user, id, MatchResult.TEAM1VICTORY)
-        # Team 2 Win
-        elif (emoji == self.reactions[1]):
-            await self.CallMatch(user, id, MatchResult.TEAM2VICTORY)
-        # Match Cancelled
-        elif (emoji == self.reactions[2]):
-            await self.CallMatch(user, id, MatchResult.CANCELLED)
-        else:
-            print('Something has gone very wrong here')
+        # If the view is invalid for whatever reason, just don't call the match
+        if (view.result == MatchResult.INVALID):
+            print('There is no result so ignore this view')
+            return
+
+        if (view.user == None):
+            view.user = self.bot.user
+
+        await self.CallMatch(view.user, id, view.result)
 
     # Union[discord.Member, FakeUser] member 
     async def UpdateRoles(self, member, oldRole, newRole):
