@@ -1,21 +1,189 @@
 from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, EmptyName, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip, InvalidStratIndex, UserNotActive
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
-from data.siegemap import MapExists, InvalidMap 
+from data.siegemap import CantRerollMap, MapExists, InvalidMap 
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import InvalidMatchResult, MatchIDNotFound, MatchResultIdentical
 from data.activitydata import InvalidActivityType, NoActivities
 from data.quipdata import NoQuips, InvalidQuipType, InvalidGuildEmoji
-from data.mappool import InvalidMapPool, MapPoolExists, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
+from data.mappool import CantForceMapPool, InvalidMapPool, MapPoolExists, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
 from data.stratroulettedata import InvalidStratRouletteTeamType, NoStratRouletteStrats, EmptyStrat
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued, PlayerNotQueuedOrInGame, PlayersNotSwapable, PlayerSwapFailed
 from utils.chatutils import SendMessage
 
 from discord.ext import commands
 import discord
+from discord import app_commands
 
 class NoPrivateMessages(commands.CheckFailure):
     def __init__(self):
         super().__init__('You can\'t run commands in dms.')
+
+async def HandleAppError(interaction:discord.Interaction, error:app_commands.AppCommandError):
+    print('Error: {}'.format(error.original))
+    if (isinstance(error.original, commands.ChannelNotFound)):
+        await SendMessage(interaction, description='`{}` is not a valid text channel.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, commands.RoleNotFound)):
+        await SendMessage(interaction, description='`{}` is not a valid role.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, commands.UserNotFound)):
+        await SendMessage(interaction, description='User not found. You can use their display name (case sensitive), id, or @ them.'.format(), color=discord.Color.red())
+
+    elif (isinstance(error.original, commands.MemberNotFound)):
+        await SendMessage(interaction, description='Member not found. You can use their display name (case sensitive), id, or @ them.'.format(), color=discord.Color.red())
+
+    elif (isinstance(error.original, commands.CommandNotFound)):
+        await SendMessage(interaction, description='{} is not a valid command.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, ChannelTypeInvalid)):
+        await SendMessage(interaction, description='`{}` is not a valid channel type.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, RegisteredRoleUnitialized)):
+        await SendMessage(interaction, description='The registered role has not been setup yet.', color=discord.Color.red())
+
+    elif (isinstance(error.original, AdminRoleUnitialized)):
+        await SendMessage(interaction, description='The admin role has not been setup yet.', color=discord.Color.red())
+
+    elif (isinstance(error.original, GuildTextChannelMismatch)):
+        await SendMessage(interaction, description='`{0.mention}` is not in the same server as the other text channels'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, GuildRoleMismatch)):
+        await SendMessage(interaction, description='`{0.mention}` is not in the same server as the text channels'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidMMRRole)):
+        await SendMessage(interaction, description='{0.mention} is not a valid rank.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidActivityIndex)):
+        await SendMessage(interaction, description='{0} is not a valid activity index.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidQuipIndex)):
+        await SendMessage(interaction, description='{0} is not a valid quip index.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidStratIndex)):
+        await SendMessage(interaction, description='{0} is not a valid Strat Roulette strat index.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidGuildEmoji)):
+        await SendMessage(interaction, description='{0} is not a valid guild emoji.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, MMRRoleExists)):
+        await SendMessage(interaction, description='{0.mention} is already a rank.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, MMRRoleRangeConflict)):
+        await SendMessage(interaction, description='The MMR Range you provided overlaps with another rank.', color=discord.Color.red())
+
+    elif (isinstance(error.original, MapExists)):
+        await SendMessage(interaction, description='`{}` is already a map'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidMap)):
+        await SendMessage(interaction, description='`{}` is not a valid map.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, MapPoolExists)):
+        await SendMessage(interaction, description='`{}` is already a map pool'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidMapPool)):
+        await SendMessage(interaction, description='`{}` is not a valid map pool.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, MapPoolMapExists)):
+        await SendMessage(interaction, description='`{}` is already a map in `{}`'.format(error.original.argument2, error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidMapPoolMap)):
+        await SendMessage(interaction, description='`{}` is not a valid map in `{}`.'.format(error.original.argument2, error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, CantForceMapPool)):
+        await SendMessage(interaction, description='You can\'t force a map pool when a match isn\'t running.', color=discord.Color.red())
+
+    elif (isinstance(error.original, CantRerollMap)):
+        await SendMessage(interaction, description='You can\'t reroll a map when a match isn\'t running.', color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidGuild)):
+        await SendMessage(interaction, description='There is no guild set.', color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidMatchResult)):
+        await SendMessage(interaction, description='`{}` is not a valid Match Result.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidActivityType)):
+        await SendMessage(interaction, description='`{}` is not a valid Activity Type.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidMapPoolType)):
+        await SendMessage(interaction, description='`{}` is not a valid Map Pool Type.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidQuipType)):
+        await SendMessage(interaction, description='`{}` is not a valid Quip Type.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidStratRouletteTeamType)):
+        await SendMessage(interaction, description='`{}` is not a valid Strat Roulette Team Type.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, NoMMRRoles)):
+        await SendMessage(interaction, description='There are no ranks.', color=discord.Color.red())
+
+    elif (isinstance(error.original, NoQuips)):
+        await SendMessage(interaction, description='There are no quips yet.', color=discord.Color.red())
+
+    elif (isinstance(error.original, NoStratRouletteStrats)):
+        await SendMessage(interaction, description='There are no Strat Roulette strats yet.', color=discord.Color.red())
+
+    elif (isinstance(error.original, NoActivities)):
+        await SendMessage(interaction, description='There are no activities yet.', color=discord.Color.red())
+
+    elif (isinstance(error.original, PlayerAlreadyQueued)):
+        await SendMessage(interaction, description='You are already in queue.', color=discord.Color.red())
+
+    elif (isinstance(error.original, PlayerNotQueued)):
+        await SendMessage(interaction, description='You are not currently in queue.', color=discord.Color.red())
+
+    elif (isinstance(error.original, PlayerNotQueuedOrInGame)):
+        await SendMessage(interaction, description='{0.mention} must be in queue or in a match.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, PlayersNotSwapable)):
+        await SendMessage(interaction, description='Player {0.mention} is not swapable with Player {1.mention}'.format(error.original.arg1, error.original.arg2), color=discord.Color.red())
+
+    elif (isinstance(error.original, PlayerSwapFailed)):
+        await SendMessage(interaction, description='Failed to find both Player {0.mention} and Player {1.mention} in the queue/start matches.'.format(error.original.arg1, error.original.arg2), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidCommandChannel)):
+        await SendMessage(interaction, description='{0.mention} is not the correct channel for {1.value} commands.'.format(error.original.argument, error.original.type), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidOwnerCommandChannel)):
+        await SendMessage(interaction, description='{0.mention} is not the correct channel for owner commands.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, UserNotRegistered)):
+        await SendMessage(interaction, description='User {0.mention} is not registered'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, UserAlreadyRegistered)):
+        await SendMessage(interaction, description='User {0.mention} is already registered'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, MatchIDNotFound)):
+        await SendMessage(interaction, description='Match with id `{}` was not found. The match history either doesn\'t exist for this match or this is not a valid match id.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, MatchResultIdentical)):
+        await SendMessage(interaction, description='The new match result is the same as the original. Nothing will happen.', color=discord.Color.red())
+
+    elif (isinstance(error.original, UserNotAdmin)):
+        await SendMessage(interaction, description='You do not have permission to run this command.', color=discord.Color.red())
+
+    elif (isinstance(error.original, UserNotOwner)):
+        await SendMessage(interaction, description='You do not have permission to run this command.', color=discord.Color.red())
+
+    elif (isinstance(error.original, UserNotActive)):
+        await SendMessage(interaction, description='You do not have permission to run this command.', color=discord.Color.red())
+
+    elif (isinstance(error.original, EmptyName)):
+        await SendMessage(interaction, description='An empty string is not a valid name.', color=discord.Color.red())
+
+    elif (isinstance(error.original, EmptyQuip)):
+        await SendMessage(interaction, description='An empty string is not a valid quip.', color=discord.Color.red())
+
+    elif (isinstance(error.original, EmptyStrat)):
+        await SendMessage(interaction, description='An empty string is not a valid Strat Roulette strat.', color=discord.Color.red())
+
+    elif (isinstance(error.original, NoPrivateMessages)):
+        await SendMessage(interaction, description='You can\'t run commands in dms.', color=discord.Color.red())
+
+    elif (isinstance(error.original, commands.errors.MissingRequiredArgument)):
+        await SendMessage(interaction, description='Invalid usage: `{0.name}` is a required argument'.format(error.original.param), color=discord.Color.red())
+
+    elif (isinstance(error.original, commands.BadArgument)):
+        await SendMessage(interaction, description='Bad Argument: {}'.format(error.original), color=discord.Color.red())
 
 async def HandleError(ctx, error):
     print('Error: {}'.format(error))

@@ -1,3 +1,4 @@
+from __future__ import barry_as_FLUFL
 from data.botsettings import ChannelType, RegisteredRoleUnitialized, InvalidGuild, EmptyName
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, MatchResult
@@ -6,11 +7,12 @@ from data.mappool import MapPoolType
 from data.stratroulettedata import StratRouletteTeamType, NoStratRouletteStrats, EmptyStrat, InvalidStratRouletteTeamType
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued
 from utils.chatutils import SendMessage, SendMessages
-from utils.botutils import IsValidChannel, IsActivePlayer
-from utils.errorutils import HandleError
+from utils.botutils import IsValidChannel, IsActivePlayer, GuildCommand
+from utils.errorutils import HandleError, HandleAppError
 from globals import *
 from discord.ext import commands, tasks
 from datetime import datetime
+from discord import app_commands
 import discord
 import random
 
@@ -88,111 +90,98 @@ class BotCommands(commands.Cog):
         await botSettings.InitSettings(self.bot)
         self.OnUpdateStatus.start()
 
-    @commands.command(name='jpp')
-    async def OnJPP(self, ctx):
+    @GuildCommand(name='jpp')
+    async def OnJPP(self, interaction:discord.Interaction):
         """jpp"""
 
-        emoji = discord.utils.get(ctx.guild.emojis, name='jpp')
-        await ctx.send(str(emoji))
+        emoji = discord.utils.get(interaction.guild.emojis, name='jpp')
+        await interaction.response.send_message(str(emoji))
 
-    @commands.command(name='golfit')
-    async def OnGolfIt(self, ctx):
+    @GuildCommand(name='golfit')
+    async def OnGolfIt(self, interaction:discord.Interaction):
         """For all your golf it music needs"""
-        await ctx.send('https://www.youtube.com/watch?v=KtmGzvBjAYU')
+        await interaction.response.send_message('https://www.youtube.com/watch?v=KtmGzvBjAYU')
 
-    @commands.command(name='whendoesbeauloplay')
-    async def OnWhenDoesBeauloPlay(self, ctx):
+    @GuildCommand(name='whendoesbeauloplay')
+    async def OnWhenDoesBeauloPlay(self, interaction:discord.Interaction):
         """👀"""
-        await ctx.send(':eyes: https://www.twitch.tv/beaulo')
+        await interaction.response.send_message(':eyes: https://www.twitch.tv/beaulo')
     
-    @commands.command(name='register', aliases=['r'], brief='Allows a user to register with the bot')
-    @IsValidChannel(ChannelType.REGISTER)
-    async def OnRegisterPlayer(self, ctx, *name):
+    @GuildCommand(name='register', description='Allows a user to register with the bot')
+    async def OnRegisterPlayer(self, interaction:discord.Interaction, name:str):
         """Allows a user to register with the bot. This enables matchmaking functionality for that user.
 
            **string:** <name>
            The name you want to use with the bot. Spaces and special characters are allowed.
         """
-        if (len(name) == 0):
-            raise EmptyName()
-
-        combinedName = ' '.join(name)
-        print('User {0.author} is registering with name {1}'.format(ctx, combinedName))
+        print('User {0.user} is registering with name {1}'.format(interaction, name))
     
         if (botSettings.registeredRole is None):
             raise RegisteredRoleUnitialized()
 
-        if (botSettings.IsUserRegistered(ctx.author)):
-            raise UserAlreadyRegistered(ctx.author)
+        if (botSettings.IsUserRegistered(interaction.user)):
+            raise UserAlreadyRegistered(interaction.user)
 
         try:
-            await ctx.author.add_roles(botSettings.registeredRole, reason='User {0.name} used the register command'.format(ctx.author))
+            await interaction.user.add_roles(botSettings.registeredRole, reason='User {0.name} used the register command'.format(interaction.user))
 
-            botSettings.RegisterUser(ctx.author, combinedName)
+            botSettings.RegisterUser(interaction.user, name)
 
-            await SendMessage(ctx, description='You have been registered as `{}`!'.format(combinedName), color=discord.Color.blue())
+            await SendMessage(interaction, description='You have been registered as `{}`!'.format(name), color=discord.Color.blue())
         except discord.HTTPException:
-            await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
+            await SendMessage(interaction, description='Registration failed. Please try again.', color=discord.Color.red())
 
-    @commands.command(name='setname')
-    async def OnSetName(self, ctx, *name):
+    @GuildCommand(name='setname')
+    async def OnSetName(self, interaction:discord.Interaction, name:str):
         """Change your name with the bot
         
            **string:** <name>
            The name you want to use with the bot. Spaces and special characters are allowed.
         """
-        if (len(name) == 0):
-            raise EmptyName()
+        print('User {0.user} is changing their name to {1}'.format(interaction, name))
 
-        combinedName = ' '.join(name)
-        print('User {0.author} is changing their name to {1}'.format(ctx, combinedName))
+        if (not botSettings.IsUserRegistered(interaction.user)):
+            raise UserNotRegistered(interaction.user)
 
-        if (not botSettings.IsUserRegistered(ctx.author)):
-            raise UserNotRegistered(ctx.author)
+        botSettings.ChangeName(interaction.user, name)
 
-        botSettings.ChangeName(ctx.author, combinedName)
+        await SendMessage(interaction, description='Your name has been changed to `{}`'.format(name), color=discord.Color.blue())
 
-        await SendMessage(ctx, description='Your name has been changed to `{}`'.format(combinedName), color=discord.Color.blue())
-
-    @commands.command(name='join', aliases=['j'])
-    @IsValidChannel(ChannelType.LOBBY)
-    async def OnJoinQueue(self, ctx):
+    @GuildCommand(name='join')
+    async def OnJoinQueue(self, interaction:discord.Interaction):
         """Join the matchmaking queue"""
-        print('User {0.author} is joining queue.'.format(ctx))
+        print('User {0.user} is joining queue.'.format(interaction))
 
-        if (not botSettings.IsUserRegistered(ctx.author)):
-            raise UserNotRegistered(ctx.author)
+        if (not botSettings.IsUserRegistered(interaction.user)):
+            raise UserNotRegistered(interaction.user)
 
-        if (matchService.IsPlayerQueued(ctx.author)):
-            raise PlayerAlreadyQueued(ctx.author)
+        if (matchService.IsPlayerQueued(interaction.user)):
+            raise PlayerAlreadyQueued(interaction.user)
 
-        await matchService.JoinQueue(ctx, ctx.author)
+        await matchService.JoinQueue(interaction, interaction.user)
 
-    @commands.command(name='leave', aliases=['l'])
-    @IsValidChannel(ChannelType.LOBBY)
-    async def OnLeaveQueue(self, ctx):
+    @GuildCommand(name='leave')
+    async def OnLeaveQueue(self, interaction:discord.Interaction):
         """Leave the matchmaking queue"""
-        print('User {0.author} is leaving queue.'.format(ctx))
+        print('User {0.user} is leaving queue.'.format(interaction))
 
-        if (not botSettings.IsUserRegistered(ctx.author)):
-            raise UserNotRegistered(ctx.author)
+        if (not botSettings.IsUserRegistered(interaction.user)):
+            raise UserNotRegistered(interaction.user)
 
-        if (not matchService.IsPlayerQueued(ctx.author)):
-            raise PlayerNotQueued(ctx.author)
+        if (not matchService.IsPlayerQueued(interaction.user)):
+            raise PlayerNotQueued(interaction.user)
 
-        await matchService.LeaveQueue(ctx, ctx.author)
+        await matchService.LeaveQueue(interaction, interaction.user)
 
-    @commands.command(name='queue')
-    @IsValidChannel(ChannelType.LOBBY)
-    async def OnShowQueue(self, ctx):
+    @GuildCommand(name='queue')
+    async def OnShowQueue(self, interaction:discord.Interaction):
         """Show the matchmaking queue"""
         print('Showing queue')
 
-        await matchService.ShowQueue(ctx)
+        await matchService.ShowQueue(interaction)
 
-    @commands.command(name='missing')
-    @IsValidChannel(ChannelType.LOBBY)
-    async def OnShowMissingPlayers(self, ctx):
+    @GuildCommand(name='missing')
+    async def OnShowMissingPlayers(self, interaction:discord.Interaction):
         """Shows who is not in the matchmaking queue"""
         print('Showing missing players')
 
@@ -204,7 +193,7 @@ class BotCommands(commands.Cog):
             missingMembers.extend(matchService.GetNotInQueue(channel.voice_states))
 
         if (len(missingMembers) == 0):
-            await SendMessage(ctx, description='Nobody is missing from queue.', color=discord.Color.blue())
+            await SendMessage(interaction, description='Nobody is missing from queue.', color=discord.Color.blue())
             return
 
         field = {}
@@ -212,20 +201,23 @@ class BotCommands(commands.Cog):
         field['value'] = ''
         field['inline'] = False
 
-        converter = commands.MemberConverter() 
-
         for memberID in missingMembers:
             try:
-                member = await converter.convert(ctx, str(memberID))
+                member = await botSettings.guild.fetch_member(str(memberID))
                 field['value'] += '{0.mention}\n'.format(member)
-            except commands.errors.MemberNotFound:
+            except (discord.NotFound, discord.HTTPException, discord.Forbidden):
                 field['value'] += '{0}\n'.format(memberID)
 
-        await SendMessage(ctx, fields=[field], color=discord.Color.blue())
+        await SendMessage(interaction, fields=[field], color=discord.Color.blue())
 
-    @commands.command(name='ranks')
-    async def OnShowRanks(self, ctx):
-        """Shows the ranks"""
+    @GuildCommand(name='ranks')
+    @app_commands.describe(broadcast='Whether or not to broadcast your stats for everyone to see.')
+    async def OnShowRanks(self, interaction:discord.Interaction, broadcast:bool = True):
+        """Shows the ranks
+        
+           **bool:** <broadcast>
+           Whether or not to broadcast your stats for everyone to see.
+        """
         print('Showing ranks')
 
         roles = botSettings.GetSortedMMRRoles()
@@ -239,13 +231,18 @@ class BotCommands(commands.Cog):
             fields.append(field)
 
         if (len(fields) == 0):
-            await SendMessage(ctx, description='There are currently no ranks.', color=discord.Color.blue())
+            await SendMessage(interaction, description='There are currently no ranks.', ephemeral=(not broadcast), color=discord.Color.blue())
         else:
-            await SendMessage(ctx, fields=fields, color=discord.Color.blue())
+            await SendMessage(interaction, fields=fields, ephemeral=(not broadcast), color=discord.Color.blue())
 
-    @commands.command(name='maps')
-    async def OnShowMaps(self, ctx):
-        """Shows the maps"""
+    @GuildCommand(name='maps')
+    @app_commands.describe(broadcast='Whether or not to broadcast your stats for everyone to see.')
+    async def OnShowMaps(self, interaction:discord.Interaction, broadcast:bool = True):
+        """Shows the maps
+        
+           **bool:** <broadcast>
+           Whether or not to broadcast your stats for everyone to see.
+        """
         print('Showing maps')
 
         maps = botSettings.GetSortedMaps()
@@ -262,13 +259,18 @@ class BotCommands(commands.Cog):
         footer = '{} map{}'.format(numMaps, '' if numMaps == 1 else 's')
 
         if (len(fields) == 0):
-            await SendMessage(ctx, description='There are currently no maps.', color=discord.Color.blue())
+            await SendMessage(interaction, description='There are currently no maps.', ephemeral=(not broadcast), color=discord.Color.blue())
         else:
-            await SendMessage(ctx, fields=fields, footer=footer, color=discord.Color.blue())
+            await SendMessage(interaction, fields=fields, footer=footer, ephemeral=(not broadcast), color=discord.Color.blue())
 
-    @commands.command(name='pools')
-    async def OnShowMapPools(self, ctx):
-        """Shows the map pools"""
+    @GuildCommand(name='pools')
+    @app_commands.describe(broadcast='Whether or not to broadcast your stats for everyone to see.')
+    async def OnShowMapPools(self, interaction:discord.Interaction, broadcast:bool = True):
+        """Shows the map pools
+        
+           **bool:** <broadcast>
+           Whether or not to broadcast your stats for everyone to see.
+        """
 
         pools = botSettings.GetSortedMapPools()
         fields = []
@@ -290,10 +292,10 @@ class BotCommands(commands.Cog):
         footer = '{} map pool{}'.format(numPools, '' if numPools == 1 else 's')
 
         if (len(fields) == 0):
-            await SendMessage(ctx, description='There are currently no map pools.', color=discord.Color.blue())
+            await SendMessage(interaction, description='There are currently no map pools.', ephemeral=(not broadcast), color=discord.Color.blue())
         else:
             currentPool = 'None' if botSettings.currentPool is None else botSettings.currentPool
-            await SendMessage(ctx, description='The current map pool is: `{}`'.format(currentPool), fields=fields, footer=footer, color=discord.Color.blue())
+            await SendMessage(interaction, description='The current map pool is: `{}`'.format(currentPool), fields=fields, footer=footer, ephemeral=(not broadcast), color=discord.Color.blue())
 
     @commands.command('addstrat')
     @IsActivePlayer()
@@ -411,16 +413,21 @@ class BotCommands(commands.Cog):
         footerStr = '{} strats available. {} Attacker, {} Defender, {} Both'.format(index, attackerStrats, defenderStrats, bothStrats)
         await SendMessages(ctx, messages, footer=footerStr, color=discord.Color.blue())
 
-    @commands.command(name='stats')
-    async def OnShowStats(self, ctx):
-        """Shows your stats"""
-        print('Showing stats for {}'.format(ctx.author))
+    @GuildCommand(name='stats')
+    @app_commands.describe(broadcast='Whether or not to broadcast your stats for everyone to see.')
+    async def OnShowStats(self, interaction:discord.Interaction, broadcast:bool = True):
+        """Shows your stats
 
-        if (not botSettings.IsUserRegistered(ctx.author)):
-            raise UserNotRegistered(ctx.author)
+           **bool:** <broadcast>
+           Whether or not to broadcast your stats for everyone to see.
+        """
+        print('Showing stats for {}'.format(interaction.user))
 
-        player = botSettings.GetRegisteredPlayerByID(ctx.author.id)
-        prevRole, currentRole = botSettings.GetMMRRole(ctx.author)
+        if (not botSettings.IsUserRegistered(interaction.user)):
+            raise UserNotRegistered(interaction.user)
+
+        player = botSettings.GetRegisteredPlayerByID(interaction.user.id)
+        prevRole, currentRole = botSettings.GetMMRRole(interaction.user)
 
         class DummyObject(object) : pass
 
@@ -480,8 +487,8 @@ class BotCommands(commands.Cog):
 
         # TODO: Calculate how many times we played with each player so we can do player stats
 
-        team1Matches = MatchHistoryData.objects(_team1__match={'_id':ctx.author.id}) 
-        team2Matches = MatchHistoryData.objects(_team2__match={'_id':ctx.author.id})
+        team1Matches = MatchHistoryData.objects(_team1__match={'_id':interaction.user.id}) 
+        team2Matches = MatchHistoryData.objects(_team2__match={'_id':interaction.user.id})
 
         def CheckResults(matches, winResult, loseResult):
             for data in matches:
@@ -566,8 +573,8 @@ class BotCommands(commands.Cog):
             mapField['value'] += '**Worst Map:** {} ({}, {:.2f}%)'.format(worstMap.name, wmDelta, worstMapWinLossPercent * 100)
 
         # We dont want data about ourself messing with the results
-        if ctx.author.id in players:
-            del players[ctx.author.id]
+        if interaction.user.id in players:
+            del players[interaction.user.id]
 
         mostPlayedPlayers = sorted(players.values(), key=lambda player: player.winsWith + player.lossesWith, reverse=True)
         bestPlayers = sorted(players.values(), key=lambda player: player.winsWith, reverse=True)
@@ -605,7 +612,7 @@ class BotCommands(commands.Cog):
             numPlayed = rivalPlayer.lossesAgainst
             playerField['value'] += '**Rival:** {} ({} losses to)\n'.format(botSettings.GetUserNameByID(rivalPlayer.id), numPlayed)
 
-        await SendMessage(ctx, title=title, fields=[mmrField, matchField, mapField, playerField], color=discord.Color.blue())
+        await SendMessage(interaction, title=title, fields=[mmrField, matchField, mapField, playerField], ephemeral=(not broadcast), color=discord.Color.blue())
 
     @commands.command(name='slap')
     async def OnSlapUser(self, ctx, member:discord.Member):
@@ -624,22 +631,25 @@ class BotCommands(commands.Cog):
         except:
             pass
 
-    @OnJPP.error
-    @OnWhenDoesBeauloPlay.error
-    @OnRegisterPlayer.error
-    @OnSetName.error
-    @OnJoinQueue.error
-    @OnLeaveQueue.error
-    @OnShowQueue.error
-    @OnShowMissingPlayers.error
-    @OnShowRanks.error
-    @OnShowMaps.error
-    @OnShowStats.error
-    @OnGolfIt.error
     @OnUpdateStatus.error
     @OnSlapUser.error
-    @OnShowMapPools.error
     @OnAddStratRouletteStrat.error
     @OnShowStratRouletteStrats.error
     async def errorHandling(self, ctx, error):
         await HandleError(ctx, error)
+
+    @OnShowStats.error
+    @OnShowRanks.error
+    @OnShowMissingPlayers.error
+    @OnJoinQueue.error
+    @OnLeaveQueue.error
+    @OnShowQueue.error
+    @OnSetName.error
+    @OnRegisterPlayer.error
+    @OnJPP.error
+    @OnWhenDoesBeauloPlay.error
+    @OnGolfIt.error
+    @OnShowMapPools.error
+    @OnShowMaps.error
+    async def errorHandling2(self, interaction:discord.Interaction, error:app_commands.AppCommandError):
+        await HandleAppError(interaction, error)

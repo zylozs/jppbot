@@ -1,17 +1,19 @@
+from pydoc import describe
 from discord.ext import commands
 from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch , InvalidGuild, RegisteredRoleUnitialized, EmptyName, InvalidStratIndex
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, InvalidMatchResult, MatchIDNotFound, MatchResultIdentical, MatchResult
 from data.mmrrole import MMRRoleExists, MMRRoleRangeConflict, InvalidMMRRole, NoMMRRoles
-from data.siegemap import MapExists, InvalidMap
-from data.mappool import MapPoolExists, InvalidMapPool, MapPoolType, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
+from data.siegemap import MapExists, InvalidMap, CantRerollMap
+from data.mappool import CantForceMapPool, MapPoolExists, InvalidMapPool, MapPoolType, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
 from data.stratroulettedata import StratRouletteData, StratRouletteTeamType, NoStratRouletteStrats
 from services.matchservice import TeamResult, PlayerNotQueuedOrInGame, PlayersNotSwapable
-from utils.botutils import IsAdmin, IsValidChannel, AddRoles, RemoveRoles
-from utils.errorutils import HandleError
+from utils.botutils import IsAdmin, IsValidChannel, AddRoles, RemoveRoles, GuildCommand
+from utils.errorutils import HandleAppError, HandleError
 from utils.chatutils import SendMessage, SendChannelMessage
 from globals import *
 from mongoengine import disconnect
+from discord import app_commands
 import discord
 import math
 import random
@@ -20,14 +22,13 @@ class AdminCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name='quit')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='quit')
     @IsAdmin()
-    async def OnQuit(self, ctx):
+    async def OnQuit(self, interaction:discord.Interaction):
         """Shuts down the bot"""
         goodbye = ['au revoir', 'goodbye', 'cya', 'à la prochaine']
-        await ctx.send(random.choice(goodbye))
-        print('User {} has requested a quit. Closing bot.'.format(ctx.author))
+        await interaction.response.send_message(random.choice(goodbye))
+        print('User {} has requested a quit. Closing bot.'.format(interaction.user))
         disconnect() # disconect our MongoDB instance
         await self.bot.close() # close our bot instance
 
@@ -75,19 +76,18 @@ class AdminCommands(commands.Cog):
         except discord.HTTPException:
             await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
 
-    @commands.command(name='clearqueue')
-    @IsValidChannel(ChannelType.LOBBY)
+    @GuildCommand(name='clearqueue')
     @IsAdmin()
-    async def OnClearQueue(self, ctx):
+    async def OnClearQueue(self, interaction:discord.Interaction):
         """Clears the matchmaking queue"""
         print('Clearing queue')
 
-        await matchService.ClearQueue(ctx)
+        await matchService.ClearQueue(interaction)
 
-    @commands.command(name='kick')
-    @IsValidChannel(ChannelType.LOBBY)
+    @GuildCommand(name='kick')
     @IsAdmin()
-    async def OnKickPlayerFromQueue(self, ctx, member:discord.Member):
+    @app_commands.describe(member='The member you want to kick.')
+    async def OnKickPlayerFromQueue(self, interaction:discord.Interaction, member:discord.Member):
         """Kicks a player from the matchmaking queue
         
            **discord.Member:** <member>
@@ -99,22 +99,24 @@ class AdminCommands(commands.Cog):
            - name (i.e. Name  (case sensitive)
            - nickname (i.e. Nickname  (case sensitive))
         """
-        print('{} is kicking {} from the queue'.format(ctx.author, member))
+        print('{} is kicking {} from the queue'.format(interaction.user, member))
 
-        await matchService.KickFromQueue(ctx, member)
+        await matchService.KickFromQueue(interaction, member)
 
-    @commands.command(name='forcestartmatch')
-    @IsValidChannel(ChannelType.LOBBY)
+    @GuildCommand(name='forcestartmatch')
     @IsAdmin()
-    async def OnForceStartMatch(self, ctx, fillWithFakePlayers:bool = False):
+    @app_commands.rename(fill_with_fake_players='debug')
+    @app_commands.describe(fill_with_fake_players='DEBUG ONLY: Fills the lobby with fake players.')
+    async def OnForceStartMatch(self, interaction:discord.Interaction, fill_with_fake_players:bool = False):
         """Starts the match
         
-           **bool:** <fillWithFakePlayers>
+           **bool:** <fill_with_fake_players>
            Fills the lobby with fake players. This is useful for testing bot functionality without having 10 players. **DO NOT USE IN A REAL MATCH**
         """
-        print('{} is force starting the match {}'.format(ctx.author, 'and filling with fake users' if fillWithFakePlayers else ''))
+        print('{} is force starting the match {}'.format(interaction.user, 'and filling with fake users' if fill_with_fake_players else ''))
 
-        await matchService.StartMatch(ctx, fillWithFakePlayers)
+        await SendMessage(interaction, description='{0.mention} is force starting the match!'.format(interaction.user), color=discord.Color.blue())
+        await matchService.StartMatch(fill_with_fake_players)
 
     @commands.command(name='clearchannel')
     @IsValidChannel(ChannelType.ADMIN)
@@ -379,10 +381,10 @@ class AdminCommands(commands.Cog):
         botSettings.RemoveMMRRole(role)
         await SendMessage(ctx, title='Rank Removed', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
 
-    @commands.command(name='setmmr')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='setmmr')
     @IsAdmin()
-    async def OnSetMMR(self, ctx, member:discord.Member, mmr:int):
+    @app_commands.describe(member='The member you want to change the mmr of.', mmr='The mmr you want to set the member to.')
+    async def OnSetMMR(self, interaction:discord.Interaction, member:discord.Member, mmr:int):
         """Set a player's mmr
 
            **discord.Member:** <member>
@@ -407,10 +409,10 @@ class AdminCommands(commands.Cog):
         previousRole, newRole = botSettings.GetMMRRole(member, previousMMR)
 
         if (previousRole is not None):
-            await RemoveRoles(ctx, member, previousRole.role, errorMessage='Failed to remove previous rank. Please try again.')
+            await RemoveRoles(interaction, member, previousRole.role, errorMessage='Failed to remove previous rank. Please try again.')
         
         if (newRole is not None):
-            await AddRoles(ctx, member, newRole.role, errorMessage='Failed to add new rank. Please try again.')
+            await AddRoles(interaction, member, newRole.role, errorMessage='Failed to add new rank. Please try again.')
 
         field = {}
         field['name'] = 'MMR Updated'
@@ -424,7 +426,7 @@ class AdminCommands(commands.Cog):
 
         matchService.UpdateMMR(member, mmr)
 
-        await SendMessage(ctx, fields=[field], color=discord.Color.blue())
+        await SendMessage(interaction, fields=[field], color=discord.Color.blue())
 
     @commands.command(name='refreshuser')
     @IsValidChannel(ChannelType.ADMIN)
@@ -911,86 +913,78 @@ class AdminCommands(commands.Cog):
 
         await SendChannelMessage(botSettings.adminChannel, description='The ranks of all players in match #{} have been updated.'.format(match._matchUniqueID), color=discord.Color.blue())
 
-    @commands.command('forcemap')
-    @IsValidChannel(ChannelType.LOBBY)
+    @GuildCommand(name='forcemap')
     @IsAdmin()
-    async def OnForceMap(self, ctx, *map):
+    @app_commands.describe(map='The map you want to force as the next map (or current map if the match has already started).')
+    async def OnForceMap(self, interaction:discord.Interaction, map:str):
         """Forces the next/current map
            If there is nobody in queue and there is no match currently being played, this command is ignored. Priority is given to changing the current map if possible and changing the next map second if not.
 
            **string:** <map>
            The map you want to force as the next map (or current map if the match has already started). This is not case sensitive. No quotes needed.
         """
-        if (len(map) == 0):
-            raise EmptyName()
+        print('Forcing map to {}'.format(map))
 
-        combinedMap = ' '.join(map)
-        print('Forcing map to {}'.format(combinedMap))
+        if (not botSettings.DoesMapExist(map)):
+            raise InvalidMap(map)
 
-        if (not botSettings.DoesMapExist(combinedMap)):
-            raise InvalidMap(combinedMap)
+        await matchService.ForceMap(interaction, botSettings.GetMapProperName(map))
 
-        await matchService.ForceMap(ctx, botSettings.GetMapProperName(combinedMap))
-
-    @commands.command('setpool')
-    @IsValidChannel(ChannelType.LOBBY)
+    @GuildCommand(name='setpool')
     @IsAdmin()
-    async def OnSetCurrentMapPool(self, ctx, *poolName):
+    @app_commands.describe(pool_name='The map pool you want to use for matchmaking.')
+    async def OnSetCurrentMapPool(self, interaction:discord.Interaction, pool_name:str):
         """Sets the current Map Pool
            Sets the map pool to use for matchmaking. This will apply on all future matches that haven't already started.
 
            **string:** <poolName>
            The map pool you want to use for the matchmaking.
         """
-        if (len(poolName) == 0):
-            raise EmptyName()
+        print('Setting map pool to {}'.format(pool_name))
 
-        combinedPoolName = ' '.join(poolName)
-        print('Setting map pool to {}'.format(combinedPoolName))
+        if (not botSettings.DoesMapPoolExist(pool_name)):
+            raise InvalidMapPool(pool_name)
 
-        if (not botSettings.DoesMapPoolExist(combinedPoolName)):
-            raise InvalidMapPool(combinedPoolName)
+        botSettings.SetCurrentMapPool(pool_name)
+        await SendMessage(interaction, description='`{}` has been set as the current map pool.'.format(pool_name), color=discord.Color.blue())
 
-        botSettings.SetCurrentMapPool(combinedPoolName)
-        await SendMessage(ctx, description='`{}` has been set as the current map pool.'.format(combinedPoolName), color=discord.Color.blue())
-
-    @commands.command('forcepool')
-    @IsValidChannel(ChannelType.LOBBY)
+    @GuildCommand(name='forcepool')
     @IsAdmin()
-    async def OnForceMapPool(self, ctx, *poolName):
+    @app_commands.describe(pool_name='The map pool you want to force for the matchmaking.')
+    async def OnForceMapPool(self, interaction:discord.Interaction, pool_name:str):
         """Forces the current Map Pool
            Sets the map pool to use for matchmaking. This will also override the existing map pool if a match has already started, including rerolling the map if the map is not in the new map pool.
 
-           **string:** <poolName>
+           **string:** <pool_name>
            The map pool you want to force for the matchmaking. This is not case sensitive. No quotes needed.
         """
+        print('Setting map pool to {}'.format(pool_name))
 
-        if (len(poolName) == 0):
-            raise EmptyName()
+        if (not botSettings.DoesMapPoolExist(pool_name)):
+            raise InvalidMapPool(pool_name)
 
-        combinedPoolName = ' '.join(poolName)
-        print('Setting map pool to {}'.format(combinedPoolName))
+        if (not matchService.IsMatchInProgress()):
+            raise CantForceMapPool()
 
-        if (not botSettings.DoesMapPoolExist(combinedPoolName)):
-            raise InvalidMapPool(combinedPoolName)
+        botSettings.SetCurrentMapPool(pool_name)
+        await SendChannelMessage(interaction.channel, description='`{}` has been set as the current map pool.'.format(pool_name), color=discord.Color.blue())
+        await matchService.ForceMapPool(interaction, botSettings.GetMapPoolProperName(pool_name))
 
-        botSettings.SetCurrentMapPool(combinedPoolName)
-        await matchService.ForceMapPool(ctx, botSettings.GetMapPoolProperName(combinedPoolName))
-        await SendMessage(ctx, description='`{}` has been set as the current map pool.'.format(combinedPoolName), color=discord.Color.blue())
-
-    @commands.command('rerollmap')
-    @IsValidChannel(ChannelType.LOBBY)
+    @GuildCommand(name='rerollmap')
     @IsAdmin()
-    async def OnRerollMap(self, ctx):
+    async def OnRerollMap(self, interaction:discord.Interaction):
         """Rerolls the current map for the match"""
         print('Rerolling the map')
 
-        await matchService.RerollMap(ctx)
+        if (not matchService.IsMatchInProgress()):
+            raise CantRerollMap()
 
-    @commands.command('swap')
-    @IsValidChannel(ChannelType.LOBBY)
+        await matchService.RerollMap(interaction, useInteraction=True)
+
+    @GuildCommand(name='swap')
     @IsAdmin()
-    async def OnSwapPlayers(self, ctx, player1:discord.Member, player2:discord.Member):
+    @app_commands.describe(player1='One of the players you want to swap. They must be either in the queue or in a match that has already started.', player2='One of the players you want to swap. They must be either in the queue or in a match that has already started.')
+    async def OnSwapPlayers(self, interaction:discord.Interaction, player1:discord.Member, player2:discord.Member):
         """Swaps two players between a queue and a match
 
            **discord.Member:** <player1>
@@ -1016,7 +1010,7 @@ class AdminCommands(commands.Cog):
             raise PlayersNotSwapable(player1, player2)
 
         # Now try to swap
-        await matchService.SwapPlayers(ctx, player1, player2)
+        await matchService.SwapPlayers(interaction, player1, player2)
  
     @commands.command('removestrat')
     @IsValidChannel(ChannelType.ADMIN)
@@ -1041,10 +1035,6 @@ class AdminCommands(commands.Cog):
         message = '[{}] Strat Removed `[{}] {}`'.format(type.name, title, strat)
         await SendMessage(ctx, description=message, color=discord.Color.blue())
 
-    @OnQuit.error
-    @OnClearQueue.error
-    @OnKickPlayerFromQueue.error
-    @OnForceStartMatch.error
     @OnClearChannel.error
     @OnSetChannel.error
     @OnShowChannels.error
@@ -1053,26 +1043,33 @@ class AdminCommands(commands.Cog):
     @OnAddRank.error
     @OnUpdateRank.error
     @OnRemoveRank.error
-    @OnSetMMR.error
     @OnRefreshUser.error
     @OnRefreshUsers.error
     @OnAddMap.error
     @OnRemoveMap.error
     @OnShowLeaderboards.error
     @OnRecallMatch.error
-    @OnForceMap.error
-    @OnRerollMap.error
     @OnSetMapThumbnail.error
     @OnForceRegisterPlayer.error
-    @OnSwapPlayers.error
     @OnAddMapPool.error
     @OnRemoveMapPool.error
     @OnSetMapPoolType.error
     @OnAddMapPoolMap.error
     @OnRemoveMapPoolMap.error
-    @OnSetCurrentMapPool.error
-    @OnForceMapPool.error
     @OnRemoveStratRouletteStrat.error
     async def errorHandling(self, ctx, error):
         await HandleError(ctx, error)
+
+    @OnQuit.error
+    @OnClearQueue.error
+    @OnForceStartMatch.error
+    @OnKickPlayerFromQueue.error
+    @OnSetMMR.error
+    @OnForceMap.error
+    @OnForceMapPool.error
+    @OnRerollMap.error
+    @OnSwapPlayers.error
+    @OnSetCurrentMapPool.error
+    async def errorHandling2(self, interaction:discord.Interaction, error:app_commands.AppCommandError):
+        await HandleAppError(interaction, error)
 

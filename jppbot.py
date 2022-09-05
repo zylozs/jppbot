@@ -39,6 +39,12 @@ class JPPBot(commands.Bot):
         await self.add_cog(BotCommands(self))
         await self.add_cog(OwnerCommands(self))
         self.help_command = HelpCommand()
+
+        guild = discord.Object(botSettings._guild)
+        # We'll copy in the global commands to test with:
+        self.tree.copy_global_to(guild=guild)
+        # followed by syncing to the testing guild.
+        await self.tree.sync(guild=guild)
         
 
 intents = discord.Intents.default()

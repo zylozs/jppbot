@@ -6,6 +6,10 @@ class MapExists(commands.BadArgument):
         self.argument = argument
         super().__init__('{}" is already a map.'.format(argument))
 
+class CantRerollMap(commands.BadArgument):
+    def __init__(self):
+        super().__init__("You can't reroll a map when a match is not in progress.")
+
 class InvalidMap(commands.BadArgument):
     def __init__(self, argument):
         self.argument = argument

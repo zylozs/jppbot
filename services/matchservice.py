@@ -169,7 +169,7 @@ class TeamResult(Enum):
     INVALID = 3
 
     @classmethod
-    async def convert(cls, ctx, argument):
+    async def convert(cls, argument):
         returnType = TeamResult.INVALID
 
         if (argument == TeamResult.WIN.value):
@@ -214,7 +214,7 @@ class MatchService(object):
 
         return missing
 
-    async def JoinQueue(self, ctx, user:discord.Member):
+    async def JoinQueue(self, interaction:discord.Interaction, user:discord.Member):
         mmr = self.botSettings.GetMMR(user)
 
         self.queuedPlayers.append(QueuedPlayer(user, mmr))
@@ -226,12 +226,12 @@ class MatchService(object):
         else:
             description = '**[{0}/10]** {1.mention} [{2}] joined the queue.'.format(numPlayers, user, mmr)
         
-        await SendMessage(ctx, description=description, color=discord.Color.blue())
+        await SendMessage(interaction, description=description, color=discord.Color.blue())
 
         if (numPlayers == 10):
-            await self.StartMatch(ctx, False)
+            await self.StartMatch(False)
 
-    async def LeaveQueue(self, ctx, user:discord.Member):
+    async def LeaveQueue(self, interaction:discord.Interaction, user:discord.Member):
         mmr = 0
         for i in range(len(self.queuedPlayers)):
             if (self.queuedPlayers[i] == user):
@@ -247,14 +247,14 @@ class MatchService(object):
         else:
             description = '**[{0}/10]** {1.mention} [{2}] left the queue.'.format(numPlayers, user, mmr)
 
-        await SendMessage(ctx, description=description, color=discord.Color.blue())
+        await SendMessage(interaction, description=description, color=discord.Color.blue())
 
-    async def ShowQueue(self, ctx):
+    async def ShowQueue(self, interaction:discord.Interaction):
         numPlayers = len(self.queuedPlayers)
 
         if (numPlayers == 0):
             description = 'The queue is empty.'
-            await SendMessage(ctx, description=description, color=discord.Color.blue())
+            await SendMessage(interaction, description=description, color=discord.Color.blue())
         else:
             title = 'Lobby [{0}/10]'.format(numPlayers)
             description = ''
@@ -268,33 +268,37 @@ class MatchService(object):
 
                 description += '[{1}] {0.mention}'.format(player.user, player.mmr)
 
-            await SendMessage(ctx, title=title, description=description, color=discord.Color.blue())
+            await SendMessage(interaction, title=title, description=description, color=discord.Color.blue())
 
-    async def ClearQueue(self, ctx):
+    async def ClearQueue(self, interaction:discord.Interaction):
         self.queuedPlayers.clear()
         self.forcedMap = None
 
-        await SendMessage(ctx, description='Queue Cleared.', color=discord.Color.blue())
+        await SendMessage(interaction, description='Queue Cleared.', color=discord.Color.blue())
 
-    async def KickFromQueue(self, ctx, user:discord.Member):
+    async def KickFromQueue(self, interaction:discord.Interaction, user:discord.Member):
         mmr = 0
+        found = False
         for i in range(len(self.queuedPlayers)):
             if (self.queuedPlayers[i] == user):
                 mmr = self.queuedPlayers[i].mmr
                 self.queuedPlayers.pop(i)
+                found = True
                 break
 
         numPlayers = len(self.queuedPlayers)
 
-        if (numPlayers == 0):
-            description = '{0.mention} [{1}] was removed from the queue by {2.mention}.\nThe queue is now empty.'.format(user, mmr, ctx.author)
+        if (found == False):
+            description = '{0.mention} is not in the queue.'.format(user)
+        elif (numPlayers == 0):
+            description = '{0.mention} [{1}] was removed from the queue by {2.mention}.\nThe queue is now empty.'.format(user, mmr, interaction.user)
             self.forcedMap = None
         else:
-            description = '**[{0}/10]** {1.mention} [{2}] was removed from the queue by {3.mention}.'.format(numPlayers, user, mmr, ctx.author)
+            description = '**[{0}/10]** {1.mention} [{2}] was removed from the queue by {3.mention}.'.format(numPlayers, user, mmr, interaction.user)
 
-        await SendMessage(ctx, description=description, color=discord.Color.blue())
+        await SendMessage(interaction, description=description, color=discord.Color.blue())
 
-    async def SwapPlayers(self, ctx, user1, user2):
+    async def SwapPlayers(self, interaction:discord.Interaction, user1, user2):
         # TODO: test this, make sure deleting the old match message doesn't cause issue
         # Re-test the match starting functionality. I rewrote some of it 
 
@@ -359,12 +363,13 @@ class MatchService(object):
 
         self.matchesStarted[matchID].BalanceTeams()
 
-        message, adminMessage = await self.SendMatchMessages(ctx, self.matchesStarted[matchID])
+        await SendMessage(interaction, description='{0.mention} has been swapped with {1.mention}!'.format(queuedPlayer.user, matchPlayer), color=discord.Color.blue())
+        message, adminMessage = await self.SendMatchMessages(self.matchesStarted[matchID])
 
         self.matchesStarted[matchID].matchMessage = message
         self.matchesStarted[matchID].adminMessage = adminMessage
 
-        await self.WaitForMatchResult(ctx, adminMessage, matchID)
+        await self.WaitForMatchResult(adminMessage, matchID)
 
     def UpdateMMR(self, user:discord.Member, mmr:int):
         for player in self.queuedPlayers:
@@ -372,12 +377,12 @@ class MatchService(object):
                 player.mmr = mmr
                 break;
 
-    async def ForceMap(self, ctx, map):
+    async def ForceMap(self, interaction:discord.Interaction, map):
         if (len(self.matchesStarted) > 0):
             key = list(self.matchesStarted.keys())[0]
             self.matchesStarted[key].map = map
 
-            await SendMessage(ctx, description='The map for Game #{} has been changed to {}.'.format(key, map), color=discord.Color.blue())
+            await SendMessage(interaction, description='The map for Game #{} has been changed to {}.'.format(key, map), color=discord.Color.blue())
 
             # Delete the old message
             try:
@@ -396,104 +401,106 @@ class MatchService(object):
             self.recentlySwappedMessages.append(messageID)
 
             # Send an updated message
-            message, adminMessage = await self.SendMatchMessages(ctx, self.matchesStarted[key])
+            message, adminMessage = await self.SendMatchMessages(self.matchesStarted[key])
 
             self.matchesStarted[key].matchMessage = message
             self.matchesStarted[key].adminMessage = adminMessage
 
-            await self.WaitForMatchResult(ctx, adminMessage, key)
+            await self.WaitForMatchResult(adminMessage, key)
 
         elif (len(self.queuedPlayers) > 0):
             self.forcedMap = map
-            await SendMessage(ctx, description='The next map will be {}.'.format(map), color=discord.Color.blue())
+            await SendMessage(interaction, description='The next map will be {}.'.format(map), color=discord.Color.blue())
         else:
-            await SendMessage(ctx, description='You can only force a map when there is a match running or players in the queue.', color=discord.Color.red())
+            await SendMessage(interaction, description='You can only force a map when there is a match running or players in the queue.', color=discord.Color.red())
 
-    async def ForceMapPool(self, ctx, pool:str):
-        if (len(self.matchesStarted) > 0):
-            key = list(self.matchesStarted.keys())[0]
-            self.matchesStarted[key].pool = pool 
+    def IsMatchInProgress(self):
+        return len(self.matchesStarted) > 0
 
-            selectedMap = self.matchesStarted[key].map
+    async def ForceMapPool(self, interaction:discord.Interaction, pool:str):
+        key = list(self.matchesStarted.keys())[0]
+        self.matchesStarted[key].pool = pool 
 
-            # If the current map isn't in the map pool, reroll the map
-            if (not self.botSettings.IsValidMapPoolMap(pool, selectedMap)):
-                await SendMessage(ctx, description='The map pool for Game #{} has been changed to {}. The map {} is not in the pool, re-rolling map!'.format(key, pool, selectedMap), color=discord.Color.blue())
-                await self.RerollMap(ctx)
-                return
+        selectedMap = self.matchesStarted[key].map
 
-            await SendMessage(ctx, description='The map pool for Game #{} has been changed to {}.'.format(key, pool), color=discord.Color.blue())
+        # If the current map isn't in the map pool, reroll the map
+        if (not self.botSettings.IsValidMapPoolMap(pool, selectedMap)):
+            await SendMessage(interaction, description='The map pool for Game #{} has been changed to {}. The map {} is not in the pool, re-rolling map!'.format(key, pool, selectedMap), color=discord.Color.blue())
+            await self.RerollMap(interaction, useInteraction=False)
+            return
 
-            # Delete the old message
-            try:
-                await self.matchesStarted[key].matchMessage.delete()
-            except:
-                pass
+        await SendMessage(interaction, description='The map pool for Game #{} has been changed to {}.'.format(key, pool), color=discord.Color.blue())
 
-            messageID = self.matchesStarted[key].adminMessage.id
-            try:
-                await self.matchesStarted[key].adminMessage.delete()
-            except:
-                pass
+        # Delete the old message
+        try:
+            await self.matchesStarted[key].matchMessage.delete()
+        except:
+            pass
 
-            self.matchesStarted[key].matchMessage = None
-            self.matchesStarted[key].adminMessage = None
-            self.recentlySwappedMessages.append(messageID)
+        messageID = self.matchesStarted[key].adminMessage.id
+        try:
+            await self.matchesStarted[key].adminMessage.delete()
+        except:
+            pass
 
-            # Send an updated message
-            message, adminMessage = await self.SendMatchMessages(ctx, self.matchesStarted[key])
+        self.matchesStarted[key].matchMessage = None
+        self.matchesStarted[key].adminMessage = None
+        self.recentlySwappedMessages.append(messageID)
 
-            self.matchesStarted[key].matchMessage = message
-            self.matchesStarted[key].adminMessage = adminMessage
+        # Send an updated message
+        message, adminMessage = await self.SendMatchMessages(self.matchesStarted[key])
 
-            await self.WaitForMatchResult(ctx, adminMessage, key)
+        self.matchesStarted[key].matchMessage = message
+        self.matchesStarted[key].adminMessage = adminMessage
+
+        await self.WaitForMatchResult(adminMessage, key)
+
+    async def RerollMap(self, interaction:discord.Interaction, useInteraction:bool):
+        key = list(self.matchesStarted.keys())[0]
+
+        enablePMCCOverride = False
+
+        for player in self.matchesStarted[key].players:
+            if (player.user.id == int('90342358620573696')):
+                enablePMCCOverride = True
+                break
+
+        selectedMap = self.botSettings.GetRandomMap(self.matchesStarted[key].pool, enablePMCCOverride).name
+
+        self.matchesStarted[key].map = selectedMap 
+
+        description = 'The map for Game #{} has been changed to {}.'.format(key, selectedMap)
+
+        if useInteraction:
+            await SendMessage(interaction, description=description, color=discord.Color.blue())
         else:
-            await SendMessage(ctx, description='You can only force a map pool when there is a match running.', color=discord.Color.red())
+            await SendChannelMessage(interaction.channel, description=description, color=discord.Color.blue())
 
-    async def RerollMap(self, ctx):
-        if (len(self.matchesStarted) > 0):
-            key = list(self.matchesStarted.keys())[0]
+        # Delete the old message
+        try:
+            await self.matchesStarted[key].matchMessage.delete()
+        except:
+            pass
 
-            enablePMCCOverride = False
+        messageID = self.matchesStarted[key].adminMessage.id
+        try:
+            await self.matchesStarted[key].adminMessage.delete()
+        except:
+            pass
 
-            for player in self.matchesStarted[key].players:
-                if (player.user.id == int('90342358620573696')):
-                    enablePMCCOverride = True
-                    break
+        self.matchesStarted[key].matchMessage = None
+        self.matchesStarted[key].adminMessage = None
+        self.recentlySwappedMessages.append(messageID)
 
-            selectedMap = self.botSettings.GetRandomMap(self.matchesStarted[key].pool, enablePMCCOverride).name
+        # Send an updated message
+        message, adminMessage = await self.SendMatchMessages(self.matchesStarted[key])
 
-            self.matchesStarted[key].map = selectedMap 
+        self.matchesStarted[key].matchMessage = message
+        self.matchesStarted[key].adminMessage = adminMessage
 
-            await SendMessage(ctx, description='The map for Game #{} has been changed to {}.'.format(key, selectedMap), color=discord.Color.blue())
+        await self.WaitForMatchResult(adminMessage, key)
 
-            # Delete the old message
-            try:
-                await self.matchesStarted[key].matchMessage.delete()
-            except:
-                pass
-
-            messageID = self.matchesStarted[key].adminMessage.id
-            try:
-                await self.matchesStarted[key].adminMessage.delete()
-            except:
-                pass
-
-            self.matchesStarted[key].matchMessage = None
-            self.matchesStarted[key].adminMessage = None
-            self.recentlySwappedMessages.append(messageID)
-
-            # Send an updated message
-            message, adminMessage = await self.SendMatchMessages(ctx, self.matchesStarted[key])
-
-            self.matchesStarted[key].matchMessage = message
-            self.matchesStarted[key].adminMessage = adminMessage
-
-            await self.WaitForMatchResult(ctx, adminMessage, key)
-        else:
-            await SendMessage(ctx, description='You can only reroll a map when there is a match running.', color=discord.Color.red())
-
-    async def SendMatchMessages(self, ctx, match):
+    async def SendMatchMessages(self, match):
         title = 'Game #{} Started'.format(match.uniqueID)
         description = '**Creation Time:** {}\n**Map:** {}\n**Map Pool:** {}'.format(match.creationTime, match.map, 'None' if match.pool is None else match.pool)
         thumbnail = self.botSettings.GetMapThumbnail(match.map)
@@ -540,7 +547,7 @@ class MatchService(object):
         else:
             team2Field['value'] = 'Empty'
 
-        await ctx.bot.change_presence(activity=discord.Game(name='on {}'.format(match.map)))
+        await self.bot.change_presence(activity=discord.Game(name='on {}'.format(match.map)))
 
         adminField = {}
         adminField['name'] = 'Report the result!'
@@ -552,7 +559,7 @@ class MatchService(object):
 
         return message, adminMessage
 
-    async def StartMatch(self, ctx, fillWithFakePlayers:bool):
+    async def StartMatch(self, fillWithFakePlayers:bool):
         if (fillWithFakePlayers and len(self.queuedPlayers) < 10):
             # Use negative ids so that we know its fake
             fakeID = -1
@@ -583,14 +590,14 @@ class MatchService(object):
 
         newMatch.BalanceTeams()
     
-        message, adminMessage = await self.SendMatchMessages(ctx, newMatch)
+        message, adminMessage = await self.SendMatchMessages(newMatch)
         
         newMatch.matchMessage = message
         newMatch.adminMessage = adminMessage 
 
-        await self.WaitForMatchResult(ctx, adminMessage, id)
+        await self.WaitForMatchResult(adminMessage, id)
 
-    async def WaitForMatchResult(self, ctx, adminMessage, id):
+    async def WaitForMatchResult(self, adminMessage, id):
         def IsValidAdminAndEmoji(reaction, user):
             if (user.bot):
                 return False
@@ -606,7 +613,7 @@ class MatchService(object):
             # 3 hour timeout
             reaction, user = await self.bot.wait_for('reaction_add', timeout=10800.0, check=IsValidAdminAndEmoji)
         except asyncio.TimeoutError:
-            await self.CallMatch(ctx, self.bot.user, id, MatchResult.CANCELLED)
+            await self.CallMatch(self.bot.user, id, MatchResult.CANCELLED)
             return
         except:
             print('Something has gone very wrong here')
@@ -621,18 +628,18 @@ class MatchService(object):
         # Team 1 Win
         emoji = str(reaction.emoji)
         if (emoji == self.reactions[0]):
-            await self.CallMatch(ctx, user, id, MatchResult.TEAM1VICTORY)
+            await self.CallMatch(user, id, MatchResult.TEAM1VICTORY)
         # Team 2 Win
         elif (emoji == self.reactions[1]):
-            await self.CallMatch(ctx, user, id, MatchResult.TEAM2VICTORY)
+            await self.CallMatch(user, id, MatchResult.TEAM2VICTORY)
         # Match Cancelled
         elif (emoji == self.reactions[2]):
-            await self.CallMatch(ctx, user, id, MatchResult.CANCELLED)
+            await self.CallMatch(user, id, MatchResult.CANCELLED)
         else:
             print('Something has gone very wrong here')
 
     # Union[discord.Member, FakeUser] member 
-    async def UpdateRoles(self, ctx, member, oldRole, newRole):
+    async def UpdateRoles(self, member, oldRole, newRole):
         if (isinstance(member, FakeUser)):
             return
 
@@ -640,15 +647,15 @@ class MatchService(object):
             try:
                 await member.remove_roles(oldRole.role, reason='Match service is updating MMR Role for {}'.format(member))
             except discord.HTTPException:
-                await SendMessage(ctx, description='Failed to remove previous rank. Please try again.', color=discord.Color.red())
+                await SendChannelMessage(self.botSettings.resultsChannel, description='Failed to remove previous rank. Please try again.', color=discord.Color.red())
 
         if (newRole is not None):
             try:
                 await member.add_roles(newRole.role, reason='Match service is updating MMR Role for {}'.format(member))
             except discord.HTTPException:
-                await SendMessage(ctx, description='Failed to add new rank. Please try again.', color=discord.Color.red())
+                await SendChannelMessage(self.botSettings.resultsChannel, description='Failed to add new rank. Please try again.', color=discord.Color.red())
 
-    async def GetTeamData(self, ctx, team, teamName, result:TeamResult):
+    async def GetTeamData(self, team, teamName, result:TeamResult):
         teamData = []
         teamField = {}
         teamField['name'] = '{}: Team {}'.format('Winner' if result == TeamResult.WIN else 'Loser', teamName)
@@ -689,13 +696,13 @@ class MatchService(object):
 
                 # No point in updating roles if the match was cancelled
                 if (result != TeamResult.CANCEL):
-                    await self.UpdateRoles(ctx, player.user, oldRole, newRole)
+                    await self.UpdateRoles(player.user, oldRole, newRole)
         else:
             teamField['value'] = 'Empty'
 
         return teamData, teamField
 
-    async def CallMatch(self, ctx, user:discord.Member, id:int, matchResult:MatchResult):
+    async def CallMatch(self, user:discord.Member, id:int, matchResult:MatchResult):
         print('Match {} has been called as {}'.format(id, matchResult))
 
         if (id not in self.matchesStarted):
@@ -708,13 +715,13 @@ class MatchService(object):
 
         winnerTeam, winnerName, loserTeam, loserName = self.matchesStarted[id].GetTeamAndNames(matchResult)
 
-        await ctx.bot.change_presence(activity=None)
+        await self.bot.change_presence(activity=None)
 
         if (matchResult == MatchResult.CANCELLED):
             description += '\n\nThis match has been cancelled.'
 
-            team1Data, team1Field = await self.GetTeamData(ctx, winnerTeam, winnerName, TeamResult.CANCEL)
-            team2Data, team2Field = await self.GetTeamData(ctx, loserTeam, loserName, TeamResult.CANCEL)
+            team1Data, team1Field = await self.GetTeamData(winnerTeam, winnerName, TeamResult.CANCEL)
+            team2Data, team2Field = await self.GetTeamData(loserTeam, loserName, TeamResult.CANCEL)
 
             self.matchesStarted[id].StoreMatchHistoryData(team1Data, team2Data, matchResult)
             del self.matchesStarted[id]
@@ -722,8 +729,8 @@ class MatchService(object):
             await SendChannelMessage(self.botSettings.resultsChannel, title=title, description=description, thumbnail=thumbnail, footer=footer, color=discord.Color.blue())
             return
 
-        winnerTeamData, winnerField = await self.GetTeamData(ctx, winnerTeam, winnerName, TeamResult.WIN)
-        loserTeamData, loserField = await self.GetTeamData(ctx, loserTeam, loserName, TeamResult.LOSE)
+        winnerTeamData, winnerField = await self.GetTeamData(winnerTeam, winnerName, TeamResult.WIN)
+        loserTeamData, loserField = await self.GetTeamData(loserTeam, loserName, TeamResult.LOSE)
 
         self.botSettings.DeclareMapPlayed(self.matchesStarted[id].map, self.matchesStarted[id].pool)
 
