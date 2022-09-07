@@ -297,9 +297,10 @@ class BotCommands(commands.Cog):
             currentPool = 'None' if botSettings.currentPool is None else botSettings.currentPool
             await SendMessage(interaction, description='The current map pool is: `{}`'.format(currentPool), fields=fields, footer=footer, ephemeral=(not broadcast), color=discord.Color.blue())
 
-    @commands.command('addstrat')
+    @GuildCommand(name='addstrat')
     @IsActivePlayer()
-    async def OnAddStratRouletteStrat(self, ctx, type:StratRouletteTeamType, title:str, *strat):
+    @app_commands.describe(type='The type of strat you want to have.', title='The name of the strat you want to add.', strat='The strat you want to add.')
+    async def OnAddStratRouletteStrat(self, interaction:discord.Interaction, type:StratRouletteTeamType, title:str, strat:str):
         """Adds a strat to the Strat Roulette pool
 
            **string|int:** <type>
@@ -324,16 +325,12 @@ class BotCommands(commands.Cog):
         if (type == StratRouletteTeamType.INVALID):
             raise InvalidStratRouletteTeamType(type)
 
-        if (len(strat) == 0):
-            raise EmptyStrat()
+        botSettings.AddStratRouletteStrat(type.value, title, strat)
+        message = '[{}] Strat Added `[{}] {}`'.format(type.name, title, strat)
+        await SendMessage(interaction, description=message, color=discord.Color.blue())
 
-        combinedStrat = ' '.join(strat)
-        botSettings.AddStratRouletteStrat(type.value, title, combinedStrat)
-        message = '[{}] Strat Added `[{}] {}`'.format(type.name, title, combinedStrat)
-        await SendMessage(ctx, description=message, color=discord.Color.blue())
-
-    @commands.command(name='strats')
-    async def OnShowStratRouletteStrats(self, ctx):
+    @GuildCommand(name='strats')
+    async def OnShowStratRouletteStrats(self, interaction:discord.Interaction):
         """Shows the Strat Roulette strats available"""
 
         if (len(botSettings.strats) == 0):
@@ -361,7 +358,7 @@ class BotCommands(commands.Cog):
         defenderStrats = 0
         bothStrats = 0
         for strat in botSettings.strats:
-            type = await StratRouletteTeamType.convert(ctx, strat.type)
+            type = await StratRouletteTeamType.convert(strat.type)
 
             if (type == StratRouletteTeamType.ATTACKER):
                 attackerStrats += 1
@@ -411,7 +408,7 @@ class BotCommands(commands.Cog):
                     field['name'] = '{}{}'.format(heading, ' [{}/{}]'.format(page, numPages))
 
         footerStr = '{} strats available. {} Attacker, {} Defender, {} Both'.format(index, attackerStrats, defenderStrats, bothStrats)
-        await SendMessages(ctx, messages, footer=footerStr, color=discord.Color.blue())
+        await SendMessages(interaction, messages, footer=footerStr, color=discord.Color.blue())
 
     @GuildCommand(name='stats')
     @app_commands.describe(broadcast='Whether or not to broadcast your stats for everyone to see.')
@@ -614,30 +611,30 @@ class BotCommands(commands.Cog):
 
         await SendMessage(interaction, title=title, fields=[mmrField, matchField, mapField, playerField], ephemeral=(not broadcast), color=discord.Color.blue())
 
-    @commands.command(name='slap')
-    async def OnSlapUser(self, ctx, member:discord.Member):
+    @GuildCommand(name='slap')
+    @app_commands.describe(member='The person you wish to slap.')
+    async def OnSlapUser(self, interaction:discord.Interaction, member:discord.Member):
         """Slaps the user, preferably with a trout
 
            **discord.Member:** <member>
-           The person you wish you slap.
+           The person you wish to slap.
         """
 
-        # First send the slap
-        await ctx.channel.send('{0.mention} slaps {1.mention} around a bit with a large trout'.format(ctx.author, member))
+        quips = ['On it boss!', '*Trout incoming*', 'Somebody call an ambulance... but not for me!', 'Salmon cannons are overrated, trout cannon when?', 'You might want to get some ice']
 
-        # Then clean up the request to avoid polluting chat
-        try:
-            await ctx.message.delete()
-        except:
-            pass
+        # Acknowledge the command
+        await interaction.response.send_message(random.choice(quips), ephemeral=True)
+
+        # Send the slap!
+        await interaction.channel.send('{0.mention} slaps {1.mention} around a bit with a large trout'.format(interaction.user, member))
 
     @OnUpdateStatus.error
-    @OnSlapUser.error
-    @OnAddStratRouletteStrat.error
-    @OnShowStratRouletteStrats.error
     async def errorHandling(self, ctx, error):
         await HandleError(ctx, error)
 
+    @OnSlapUser.error
+    @OnShowStratRouletteStrats.error
+    @OnAddStratRouletteStrat.error
     @OnShowStats.error
     @OnShowRanks.error
     @OnShowMissingPlayers.error
