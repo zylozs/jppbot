@@ -22,6 +22,9 @@ class HelpCommand(commands.DefaultHelpCommand):
             The signature for the command.
         """
 
+        if (self.ShouldFilterCommand(self.context, command.cog_name)):
+            return None
+
         field = {}
         field['name'] = command.name
         field['value'] = '**Usage:** '
@@ -39,7 +42,7 @@ class HelpCommand(commands.DefaultHelpCommand):
         parent_sig = ' '.join(reversed(entries))
 
         name = command.name if not parent_sig else parent_sig + ' ' + command.name
-        field['value'] += '{}{} {}'.format(self.clean_prefix, name, command.signature)
+        field['value'] += '{}{} {}'.format(self.context.clean_prefix, name, command.signature)
 
         if len(command.aliases) > 0:
             aliases = '|'.join(command.aliases)
@@ -58,6 +61,9 @@ class HelpCommand(commands.DefaultHelpCommand):
         """
 
         field = self.get_command_signature(command)
+
+        if field is None:
+            return None
 
         if command.help:
             field['value'] += '\n{}'.format(command.help)
@@ -159,10 +165,7 @@ class HelpCommand(commands.DefaultHelpCommand):
 
         # Now we can add the commands to the page.
         for category, commands in to_iterate:
-            if (category != 'OwnerCommands' and ctx.guild is None):
-                continue
-
-            if (category == 'AdminCommands' and not botSettings.IsUserAdmin(ctx.author)):
+            if (self.ShouldFilterCommand(ctx, category)):
                 continue
 
             commands = sorted(commands, key=lambda c: c.name) if self.sort_commands else list(commands)
@@ -175,7 +178,11 @@ class HelpCommand(commands.DefaultHelpCommand):
 
     async def send_command_help(self, command):
         field = self.add_command_formatting(command)
-        await SendChannelMessage(self.get_destination(), fields=[field], color=discord.Color.blue())
+
+        if field is None:
+            await self.get_destination().send('No command called "{}" found.'.format(command.name))
+        else:
+            await SendChannelMessage(self.get_destination(), fields=[field], color=discord.Color.blue())
 
     async def send_group_help(self, group):
         self.add_command_formatting(group)
@@ -192,6 +199,10 @@ class HelpCommand(commands.DefaultHelpCommand):
         await self.send_pages()
 
     async def send_cog_help(self, cog):
+        if (self.ShouldFilterCommand(self.context, cog.qualified_name)):
+            await self.get_destination().send('No command called "{}" found.'.format(cog.qualified_name))
+            return
+
         filtered = await self.filter_commands(cog.get_commands(), sort=self.sort_commands)
         fields = self.add_indented_commands(filtered, heading=self.commands_heading)
 
@@ -201,3 +212,16 @@ class HelpCommand(commands.DefaultHelpCommand):
 
     async def send_pages(self):
         pass
+
+    def ShouldFilterCommand(self, ctx, category):
+        if (category != 'OwnerCommands' and ctx.guild is None):
+            return True
+        elif (category == 'OwnerCommands' and ctx.guild is not None):
+            return True
+
+        if (category == 'OwnerCommands' and not botSettings.IsUserOwner(ctx.author)):
+            return True
+
+        if (category == 'AdminCommands' and not botSettings.IsUserAdmin(ctx.author)):
+            return True
+        return False

@@ -40,11 +40,15 @@ class JPPBot(commands.Bot):
         await self.add_cog(OwnerCommands(self))
         self.help_command = HelpCommand()
 
-        guild = discord.Object(botSettings._guild)
+        # If you need to specifically test global commands within a guild only context, uncomment this
+        #guild = discord.Object(botSettings._guild)
         # We'll copy in the global commands to test with:
-        self.tree.copy_global_to(guild=guild)
+        #self.tree.copy_global_to(guild=guild)
         # followed by syncing to the testing guild.
-        await self.tree.sync(guild=guild)
+        #await self.tree.sync(guild=guild)
+
+        # sync the global commands
+        await self.tree.sync()
         
 
 intents = discord.Intents.default()
@@ -52,7 +56,7 @@ intents.members = True
 intents.voice_states = True
 intents.guilds = True
 intents.message_content = True
-bot = JPPBot(command_prefix='!', description='A bot to host the weekly JPP sessions.', intents=intents)
+bot = JPPBot(command_prefix='!', description='A bot to host the weekly JPP sessions.\nFor Slash Command help, just start typing / and see what JPP Bot provides!', intents=intents)
 
 # We dont want people dming the bot to run commands
 from utils.errorutils import HandleError, NoPrivateMessages

@@ -13,6 +13,7 @@ from globals import *
 from discord.ext import commands, tasks
 from datetime import datetime
 from discord import app_commands
+from discord.app_commands import Choice
 import discord
 import random
 
@@ -299,8 +300,12 @@ class BotCommands(commands.Cog):
 
     @GuildCommand(name='addstrat')
     @IsActivePlayer()
-    @app_commands.describe(type='The type of strat you want to have.', title='The name of the strat you want to add.', strat='The strat you want to add.')
-    async def OnAddStratRouletteStrat(self, interaction:discord.Interaction, type:StratRouletteTeamType, title:str, strat:str):
+    @app_commands.describe(strat_type='The type of strat you want to have.', title='The name of the strat you want to add.', strat='The strat you want to add.')
+    @app_commands.choices(strat_type=[
+        Choice(name='Attack', value=StratRouletteTeamType.ATTACKER.value),
+        Choice(name='Defense', value=StratRouletteTeamType.DEFENDER.value),
+        Choice(name='Both', value=StratRouletteTeamType.BOTH.value) ])
+    async def OnAddStratRouletteStrat(self, interaction:discord.Interaction, strat_type:Choice[int], title:str, strat:str):
         """Adds a strat to the Strat Roulette pool
 
            **string|int:** <type>
@@ -322,6 +327,8 @@ class BotCommands(commands.Cog):
            **string:** <strat>
            The strat you want to add. No quotes needed.
         """
+        type = await StratRouletteTeamType.convert(strat_type.value)
+
         if (type == StratRouletteTeamType.INVALID):
             raise InvalidStratRouletteTeamType(type)
 

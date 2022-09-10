@@ -1,3 +1,4 @@
+from pydoc import describe
 from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, InvalidChannelType, InvalidRole, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, EmptyName, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip, InvalidStratIndex, UserNotActive
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
 from data.siegemap import CantRerollMap, MapExists, InvalidMap 
@@ -19,6 +20,10 @@ class NoPrivateMessages(commands.CheckFailure):
         super().__init__('You can\'t run commands in dms.')
 
 async def HandleAppError(interaction:discord.Interaction, error:app_commands.AppCommandError):
+    if (isinstance(error, app_commands.CheckFailure) ):
+        await SendMessage(interaction, description='You don\'t have permission to run this command.', color=discord.Color.red(), ephemeral=True)
+        return
+
     print('Error: {}'.format(error.original))
     if (isinstance(error.original, commands.ChannelNotFound)):
         await SendMessage(interaction, description='`{}` is not a valid text channel.'.format(error.original.argument), color=discord.Color.red())
@@ -150,7 +155,7 @@ async def HandleAppError(interaction:discord.Interaction, error:app_commands.App
         await SendMessage(interaction, description='{0.mention} is not the correct channel for {1.value} commands.'.format(error.original.argument, error.original.type), color=discord.Color.red())
 
     elif (isinstance(error.original, InvalidOwnerCommandChannel)):
-        await SendMessage(interaction, description='{0.mention} is not the correct channel for owner commands.'.format(error.original.argument), color=discord.Color.red())
+        await SendMessage(interaction, description='{0.mention} is not the correct channel for owner commands.'.format(error.original.argument), color=discord.Color.red(), ephemeral=True)
 
     elif (isinstance(error.original, UserNotRegistered)):
         await SendMessage(interaction, description='User {0.mention} is not registered'.format(error.original.argument), color=discord.Color.red())

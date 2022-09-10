@@ -10,6 +10,7 @@ from data.stratroulettedata import StratRouletteData
 from enum import Enum
 from discord.ext import commands
 from mongoengine import Document, IntField, StringField
+from discord import app_commands
 import discord
 import random
 import math
@@ -27,12 +28,12 @@ class AdminRoleUnitialized(commands.CommandError):
     def __init__(self):
         super().__init__('The admin role has not been setup.')
 
-class UserNotAdmin(commands.CommandError):
+class UserNotAdmin(app_commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('The user {0.mention} is not an admin'.format(argument))
 
-class UserNotOwner(commands.CommandError):
+class UserNotOwner(app_commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('The user {0.mention} is not the owner'.format(argument))
@@ -66,7 +67,7 @@ class InvalidCommandChannel(commands.BadArgument):
         self.type = type
         super().__init__('{0} is not the correct channel for {1.value} commands'.format(argument.mention if hasattr(argument, 'mention') else 'This', type))
 
-class InvalidOwnerCommandChannel(commands.BadArgument):
+class InvalidOwnerCommandChannel(app_commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('{0.mention} is not the correct channel for owner commands'.format(argument))

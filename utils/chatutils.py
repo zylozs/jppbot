@@ -36,13 +36,6 @@ def CreateEmbed(**kwargs):
 
     return messageEmbed
 
-async def SendMessage(ctx, **kwargs):
-   return await SendChannelMessage(ctx.channel, **kwargs)
-
-async def SendMessages(ctx, messages, **kwargs):
-    for message in messages:
-        await SendChannelMessage(ctx.channel, fields=message, **kwargs)
-
 async def SendMessage(interaction:discord.Interaction, ephemeral=False, **kwargs):
     await interaction.response.send_message(embed=CreateEmbed(**kwargs), ephemeral=ephemeral)
 

@@ -2,9 +2,9 @@ from discord.ext import commands
 from data.botsettings import EmptyName, InvalidGuild, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip
 from data.activitydata import ActivityType, InvalidActivityType, NoActivities
 from data.quipdata import NoQuips, QuipType, InvalidQuipType, InvalidGuildEmoji
-from utils.chatutils import SendMessage
+from utils.chatutils import SendChannelMessage, SendMessage
 from utils.botutils import IsPrivateMessage, IsOwner 
-from utils.errorutils import HandleError
+from utils.errorutils import HandleAppError, HandleError
 from globals import *
 import inspect
 import discord
@@ -28,7 +28,7 @@ class OwnerCommands(commands.Cog):
         combinedName = ' '.join(name)
         member = botSettings.guild.get_member(self.bot.user.id)
         await member.edit(nick=combinedName)
-        await SendMessage(ctx, description='Changing nickname to `{}`'.format(combinedName), color=discord.Color.blue())
+        await SendChannelMessage(ctx.channel, description='Changing nickname to `{}`'.format(combinedName), color=discord.Color.blue())
 
     @commands.command(name='addactivity')
     @IsPrivateMessage()
@@ -61,7 +61,7 @@ class OwnerCommands(commands.Cog):
         combinedName = ' '.join(name)
         botSettings.AddActivity(combinedName, type.value)
 
-        await SendMessage(ctx, description='Activity `{}` added'.format(combinedName), color=discord.Color.blue())
+        await SendChannelMessage(ctx.channel, description='Activity `{}` added'.format(combinedName), color=discord.Color.blue())
 
     @commands.command(name='activities')
     @IsPrivateMessage()
@@ -78,7 +78,7 @@ class OwnerCommands(commands.Cog):
             message += '{}. [{}] `{}`\n'.format(index, type.name, activity.name)
             index += 1
 
-        await SendMessage(ctx, description=message, color=discord.Color.blue())
+        await SendChannelMessage(ctx.channel, description=message, color=discord.Color.blue())
 
     @commands.command(name='removeactivity')
     @IsPrivateMessage()
@@ -98,7 +98,7 @@ class OwnerCommands(commands.Cog):
         activityName = botSettings.activities[index].name
         botSettings.RemoveActivity(index)
 
-        await SendMessage(ctx, description='Activity `{}` removed'.format(activityName), color=discord.Color.blue())
+        await SendChannelMessage(ctx.channel, description='Activity `{}` removed'.format(activityName), color=discord.Color.blue())
 
     @commands.command(name='addquip')
     @IsPrivateMessage()
@@ -160,7 +160,7 @@ class OwnerCommands(commands.Cog):
 
         message = '[{}]{}Quip added `{}`'.format(type.name, additionalInfo, combinedQuip)
 
-        await SendMessage(ctx, description=message, color=discord.Color.blue())
+        await SendChannelMessage(ctx.channel, description=message, color=discord.Color.blue())
 
     @commands.command(name='quips')
     @IsPrivateMessage()
@@ -214,7 +214,7 @@ class OwnerCommands(commands.Cog):
                 page += 1
                 field['name'] = '{}{}'.format(heading, ' [{}/{}]'.format(page, numPages))
 
-        await SendMessage(ctx, fields=fields, color=discord.Color.blue())
+        await SendChannelMessage(ctx.channel, fields=fields, color=discord.Color.blue())
 
     @commands.command(name='removequip')
     @IsPrivateMessage()
@@ -242,7 +242,7 @@ class OwnerCommands(commands.Cog):
 
         message = '[{}]{}Quip removed `{}`'.format(type.name, additionalInfo, quip)
 
-        await SendMessage(ctx, description=message, color=discord.Color.blue())
+        await SendChannelMessage(ctx.channel, description=message, color=discord.Color.blue())
 
     @OnSetNickname.error
     @OnAddActivity.error

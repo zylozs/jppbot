@@ -14,6 +14,7 @@ from utils.chatutils import SendMessage, SendChannelMessage, SendMessageEdit
 from globals import *
 from mongoengine import disconnect
 from discord import app_commands
+from discord.app_commands import Choice
 import discord
 import math
 import random
@@ -115,7 +116,13 @@ class AdminCommands(commands.Cog):
     @GuildCommand(name='clearchannel')
     @IsAdmin()
     @app_commands.describe(channel_type='The channel type to clear from the bot\'s settings.')
-    async def OnClearChannel(self, interaction:discord.Interaction, channel_type:ChannelType):
+    @app_commands.choices(channel_type=[
+        Choice(name='Admin', value=ChannelType.ADMIN.value),
+        Choice(name='Lobby', value=ChannelType.LOBBY.value),
+        Choice(name='Register', value=ChannelType.REGISTER.value),
+        Choice(name='Report', value=ChannelType.REPORT.value),
+        Choice(name='Results', value=ChannelType.RESULTS.value) ])
+    async def OnClearChannel(self, interaction:discord.Interaction, channel_type:Choice[str]):
         """Clears a channel from use with the bot
 
            **string:** <channel_type>
@@ -126,33 +133,41 @@ class AdminCommands(commands.Cog):
            - report
            - admin
         """
-        print('Channel type: {}'.format(channel_type))
+        print('Channel type: {}'.format(channel_type.value))
 
-        if (channel_type == ChannelType.INVALID):
+        type = await ChannelType.convert(channel_type.value)
+
+        if (type == ChannelType.INVALID):
             raise InvalidChannelType()
 
-        if (channel_type is ChannelType.LOBBY):
+        if (type is ChannelType.LOBBY):
             channel = botSettings.lobbyChannel
             botSettings.SetLobbyChannel(None)
-        elif (channel_type is ChannelType.REGISTER):
+        elif (type is ChannelType.REGISTER):
             channel = botSettings.registerChannel
             botSettings.SetRegisterChannel(None)
-        elif (channel_type is ChannelType.ADMIN):
+        elif (type is ChannelType.ADMIN):
             channel = botSettings.adminChannel
             botSettings.SetAdminChannel(None)
-        elif (channel_type is ChannelType.RESULTS):
+        elif (type is ChannelType.RESULTS):
             channel = botSettings.resultsChannel
             botSettings.SetResultsChannel(None)
-        elif (channel_type is ChannelType.REPORT):
+        elif (type is ChannelType.REPORT):
             channel = botSettings.reportChannel
             botSettings.SetReportChannel(None)
 
-        await SendMessage(interaction, description='{0.mention} has been cleared as the {1.value} channel'.format(channel, channel_type), color=discord.Color.blue())
+        await SendMessage(interaction, description='{0.mention} has been cleared as the {1.value} channel'.format(channel, type), color=discord.Color.blue())
 
     @GuildCommand(name='setchannel')
     @IsAdmin()
     @app_commands.describe(channel='The text channel you want to use for the channel type.', channel_type='The channel type to associate with the text channel.')
-    async def OnSetChannel(self, interaction:discord.Interaction, channel:discord.TextChannel, channel_type:ChannelType):
+    @app_commands.choices(channel_type=[
+        Choice(name='Admin', value=ChannelType.ADMIN.value),
+        Choice(name='Lobby', value=ChannelType.LOBBY.value),
+        Choice(name='Register', value=ChannelType.REGISTER.value),
+        Choice(name='Report', value=ChannelType.REPORT.value),
+        Choice(name='Results', value=ChannelType.RESULTS.value) ])
+    async def OnSetChannel(self, interaction:discord.Interaction, channel:discord.TextChannel, channel_type:Choice[str]):
         """Sets a channel for use with the bot
 
            **discord.TextChannel:** <channel>
@@ -170,7 +185,9 @@ class AdminCommands(commands.Cog):
            - report
            - admin
         """
-        print('Setting Channel: {} type: {}'.format(channel, channel_type))
+        print('Setting Channel: {} type: {}'.format(channel, channel_type.value))
+
+        type = await ChannelType.convert(channel_type.value)
 
         # setup guild if missing
         if (botSettings.guild is None):
@@ -178,21 +195,21 @@ class AdminCommands(commands.Cog):
         elif (botSettings.guild is not channel.guild):
             raise GuildTextChannelMismatch(channel)
 
-        if (channel_type is ChannelType.INVALID):
+        if (type is ChannelType.INVALID):
             raise InvalidChannelType()
 
-        if (channel_type is ChannelType.LOBBY):
+        if (type is ChannelType.LOBBY):
             botSettings.SetLobbyChannel(channel)
-        elif (channel_type is ChannelType.REGISTER):
+        elif (type is ChannelType.REGISTER):
             botSettings.SetRegisterChannel(channel)
-        elif (channel_type is ChannelType.ADMIN):
+        elif (type is ChannelType.ADMIN):
             botSettings.SetAdminChannel(channel)
-        elif (channel_type is ChannelType.RESULTS):
+        elif (type is ChannelType.RESULTS):
             botSettings.SetResultsChannel(channel)
-        elif (channel_type is ChannelType.REPORT):
+        elif (type is ChannelType.REPORT):
             botSettings.SetReportChannel(channel)
 
-        await SendMessage(interaction, description='{0.mention} has been set as the {1.value} channel'.format(channel, channel_type), color=discord.Color.blue())
+        await SendMessage(interaction, description='{0.mention} has been set as the {1.value} channel'.format(channel, type), color=discord.Color.blue())
 
     @GuildCommand(name='channels')
     @IsAdmin()
@@ -582,8 +599,12 @@ class AdminCommands(commands.Cog):
 
     @GuildCommand(name='addpool')
     @IsAdmin()
-    @app_commands.describe(name='The name of the map pool you want to add. Casing is preserved.', type='The type of Map Pool you want to have.')
-    async def OnAddMapPool(self, interaction:discord.Interaction, name:str, type:MapPoolType):
+    @app_commands.describe(name='The name of the map pool you want to add. Casing is preserved.', pool_type='The type of Map Pool you want to have.')
+    @app_commands.choices(pool_type=[
+        Choice(name='All', value=MapPoolType.ALL.value),
+        Choice(name='Custom', value=MapPoolType.CUSTOM.value),
+        Choice(name='Exclude', value=MapPoolType.EXCLUDE.value) ])
+    async def OnAddMapPool(self, interaction:discord.Interaction, name:str, pool_type:Choice[int]):
         """Adds a map pool
 
            **string:** <name>
@@ -602,6 +623,8 @@ class AdminCommands(commands.Cog):
            - exclude (All maps excluding specified)
            - e (All maps excluding specified)
         """
+
+        type = await MapPoolType.convert(pool_type.value)
 
         if (type == MapPoolType.INVALID):
             raise InvalidMapPoolType(type)
@@ -630,8 +653,12 @@ class AdminCommands(commands.Cog):
 
     @GuildCommand(name='setpooltype')
     @IsAdmin()
-    @app_commands.describe(name='The name of the map pool you want to modify. This is not case sensitive.', type='The type of Map Pool you want to have.')
-    async def OnSetMapPoolType(self, interaction:discord.Interaction, name:str, type:MapPoolType):
+    @app_commands.describe(name='The name of the map pool you want to modify. This is not case sensitive.', pool_type='The type of Map Pool you want to have.')
+    @app_commands.choices(pool_type=[
+        Choice(name='All', value=MapPoolType.ALL.value),
+        Choice(name='Custom', value=MapPoolType.CUSTOM.value),
+        Choice(name='Exclude', value=MapPoolType.EXCLUDE.value) ])
+    async def OnSetMapPoolType(self, interaction:discord.Interaction, name:str, pool_type:Choice[int]):
         """Sets an existing map pool's type
 
            **string:** <name>
@@ -650,6 +677,8 @@ class AdminCommands(commands.Cog):
            - exclude (All maps excluding specified)
            - e (All maps excluding specified)
         """
+        type = await MapPoolType.convert(pool_type.value)
+
         if (type == MapPoolType.INVALID):
             raise InvalidMapPoolType(type)
 
@@ -774,8 +803,12 @@ class AdminCommands(commands.Cog):
     @GuildCommand(name='recallmatch')
     @IsAdmin()
     @app_commands.describe(match_id='The unique ID of the match you want to modify. This will be the ID shown in any of the various match related messages.', 
-        new_result='The new result you want to match to have.')
-    async def OnRecallMatch(self, interaction:discord.Interaction, match_id:int, new_result:MatchResult):
+        new_result_type='The new result you want to match to have.')
+    @app_commands.choices(new_result_type=[
+        Choice(name='Cancelled', value=MatchResult.CANCELLED.value),
+        Choice(name='Blue Win', value=MatchResult.TEAM1VICTORY.value),
+        Choice(name='Orange Win', value=MatchResult.TEAM2VICTORY.value) ])
+    async def OnRecallMatch(self, interaction:discord.Interaction, match_id:int, new_result_type:Choice[int]):
         """Lets you change the a match's result
 
            **int:** <matchID>
@@ -795,7 +828,9 @@ class AdminCommands(commands.Cog):
            - t2 (Team 2 Victory)
            - cancel (Cancelled)
         """
-        print('User {} is recalling the match {} with a new result: {}'.format(interaction.user, match_id, new_result))
+        print('User {} is recalling the match {} with a new result: {}'.format(interaction.user, match_id, new_result_type.value))
+
+        new_result = await MatchResult.convert(new_result_type.value)
 
         if (new_result == MatchResult.INVALID):
             raise InvalidMatchResult(new_result)
@@ -810,7 +845,7 @@ class AdminCommands(commands.Cog):
         if (match._result == new_result.value):
             raise MatchResultIdentical(new_result)
 
-        await SendMessage(interaction, description='Recalling match {} with a new result: {}'.format(match_id, new_result), color=discord.Color.blue())
+        await SendMessage(interaction, description='Recalling match {} with a new result: {}'.format(match_id, new_result_type.name), color=discord.Color.blue())
 
         def GetTeamField(teamName:str, teamResult:TeamResult):
             teamField = {}
