@@ -107,7 +107,7 @@ class ChannelType(Enum):
     INVALID = "invalid"
 
     @classmethod
-    async def convert(cls, ctx, argument):
+    async def convert(cls, argument):
         tempArg = argument.lower()
         returnType = ChannelType.INVALID
 

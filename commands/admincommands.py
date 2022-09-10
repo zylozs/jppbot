@@ -118,7 +118,7 @@ class AdminCommands(commands.Cog):
     async def OnClearChannel(self, interaction:discord.Interaction, channel_type:ChannelType):
         """Clears a channel from use with the bot
 
-           **string:** <channelType>
+           **string:** <channel_type>
            Types available (not case sensitive):
            - lobby
            - register
@@ -162,7 +162,7 @@ class AdminCommands(commands.Cog):
            - mention (i.e. #Name)
            - name (i.e. Name  (case sensitive)
 
-           **string:** <channelType>
+           **string:** <channel_type>
            Types available (not case sensitive):
            - lobby
            - register
@@ -288,13 +288,13 @@ class AdminCommands(commands.Cog):
            - mention (i.e. @RoleName)
            - name (i.e. RoleName  (case sensitive)
 
-           **int:** <mmrMin>
+           **int:** <mmr_min>
            The minimum MMR for this rank (inclusive)
 
-           **int:** <mmrMax>
+           **int:** <mmr_max>
            The maximum MMR for this rank (inclusive)
 
-           **int:** <mmrDelta>
+           **int:** <mmr_delta>
            The MMR increase or decrease after each match
         """
         print('Adding new rank: {} min: {} max: {} delta: {}'.format(role, mmr_min, mmr_max, mmr_delta))
@@ -333,13 +333,13 @@ class AdminCommands(commands.Cog):
            - mention (i.e. @RoleName)
            - name (i.e. RoleName  (case sensitive)
 
-           **int:** <mmrMin>
+           **int:** <mmr_min>
            The minimum MMR for this rank (inclusive)
 
-           **int:** <mmrMax>
+           **int:** <mmr_max>
            The maximum MMR for this rank (inclusive)
 
-           **int:** <mmrDelta>
+           **int:** <mmr_delta>
            The MMR increase or decrease after each match
         """
         print('Updating existing rank: {} min: {} max: {} delta: {}'.format(role, mmr_min, mmr_max, mmr_delta))
@@ -522,35 +522,35 @@ class AdminCommands(commands.Cog):
 
         await SendMessageEdit(interaction, description='Ranks have been updated on all registered players.', color=discord.Color.blue())
 
-    @commands.command(name='addmap')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='addmap')
     @IsAdmin()
-    async def OnAddMap(self, ctx, name:str, thumbnailURL:str =''):
+    @app_commands.describe(name='The name of the map you want to add. Casing is preserved.', thumbnail_url='The url of hte image you want to use as the map\'s thumbnail.')
+    async def OnAddMap(self, interaction:discord.Interaction, name:str, thumbnail_url:str =''):
         """Adds a map
 
            **string:** <name>
-           The name of the map you want to add. Casing is preserved, but name validation is not case sensitive. If you want multiple words, surround them with double quotes "like this".
+           The name of the map you want to add. Casing is preserved, but name validation is not case sensitive.
 
            **string:** <thumbnailURL> (Optional)
            **Default value:** ''
            The url of the image you want to use as the map's thumbnail. Omit if you dont want a thumbnail.
         """
-        print('Adding map {} with thumbnail {}'.format(name, thumbnailURL))
+        print('Adding map {} with thumbnail {}'.format(name, thumbnail_url))
 
         if (botSettings.DoesMapExist(name)):
             raise MapExists(name)
 
-        botSettings.AddMap(name, thumbnailURL)
-        await SendMessage(ctx, description='`{}` has been added as a map.'.format(name), color=discord.Color.blue())
+        botSettings.AddMap(name, thumbnail_url)
+        await SendMessage(interaction, description='`{}` has been added as a map.'.format(name), color=discord.Color.blue())
 
-    @commands.command(name='removemap')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='removemap')
     @IsAdmin()
-    async def OnRemoveMap(self, ctx, name:str):
+    @app_commands.describe(name='The name of the map you want to remove. This is not case sensitive.')
+    async def OnRemoveMap(self, interaction:discord.Interaction, name:str):
         """Removes a map
         
            **string:** <name>
-           The name of the map you want to remove. This is not case sensitive.  If you want multiple words, surround them with double quotes "like this".
+           The name of the map you want to remove. This is not case sensitive.
         """
         print('Removing map: {}'.format(name))
 
@@ -558,12 +558,12 @@ class AdminCommands(commands.Cog):
             raise InvalidMap(name)
 
         botSettings.RemoveMap(name)
-        await SendMessage(ctx, description='`{}` has been removed as a map.'.format(name), color=discord.Color.blue())	
+        await SendMessage(interaction, description='`{}` has been removed as a map.'.format(name), color=discord.Color.blue())	
 
-    @commands.command(name='setmapthumbnail')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='setmapthumbnail')
     @IsAdmin()
-    async def OnSetMapThumbnail(self, ctx, name:str, thumbnailURL:str):
+    @app_commands.describe(name='The name of the map you want to add. This is not case sensitive.', thumbnail_url='The url of the image you want to use as the map\'s thumbnail.')
+    async def OnSetMapThumbnail(self, interaction:discord.Interaction, name:str, thumbnail_url:str):
         """Changes the thumbnail for a map
 
            **string:** <name>
@@ -572,19 +572,22 @@ class AdminCommands(commands.Cog):
            **string:** <thumbnailURL>
            The url of the image you want to use as the map's thumbnail. 
         """
-        print('Setting thumbnail for map {} to {}'.format(name, thumbnailURL))
+        print('Setting thumbnail for map {} to {}'.format(name, thumbnail_url))
 
         if (not botSettings.DoesMapExist(name)):
             raise InvalidMap(name)
 
-        botSettings.SetMapThumbnail(name, thumbnailURL)
-        await SendMessage(ctx, description='`{}` has been set as the thumbnail for map {}.'.format(thumbnailURL, name), color=discord.Color.blue())	
+        botSettings.SetMapThumbnail(name, thumbnail_url)
+        await SendMessage(interaction, description='`{}` has been set as the thumbnail for map {}.'.format(thumbnail_url, name), color=discord.Color.blue())	
 
-    @commands.command(name='addpool')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='addpool')
     @IsAdmin()
-    async def OnAddMapPool(self, ctx, type:MapPoolType, *name):
+    @app_commands.describe(name='The name of the map pool you want to add. Casing is preserved.', type='The type of Map Pool you want to have.')
+    async def OnAddMapPool(self, interaction:discord.Interaction, name:str, type:MapPoolType):
         """Adds a map pool
+
+           **string:** <name>
+           The name of the map pool you want to add. Casing is preserved, but name validation is not case sensitive.
 
            **string|int:** <type>
            The type of Map Pool you want to have.
@@ -598,51 +601,41 @@ class AdminCommands(commands.Cog):
            - c (Custom map list)
            - exclude (All maps excluding specified)
            - e (All maps excluding specified)
-
-           **string:** <name>
-           The name of the map pool you want to add. Casing is preserved, but name validation is not case sensitive.
         """
 
         if (type == MapPoolType.INVALID):
             raise InvalidMapPoolType(type)
 
-        if (len(name) == 0):
-            raise EmptyName()
+        if (botSettings.DoesMapPoolExist(name)):
+            raise MapPoolExists(name)
 
-        combinedName = ' '.join(name)
+        botSettings.AddMapPool(name, type.value)
+        await SendMessage(interaction, description='`{}` has been added as a map pool.'.format(name), color=discord.Color.blue())
 
-        if (botSettings.DoesMapPoolExist(combinedName)):
-            raise MapPoolExists(combinedName)
-
-        botSettings.AddMapPool(combinedName, type.value)
-        await SendMessage(ctx, description='`{}` has been added as a map pool.'.format(combinedName), color=discord.Color.blue())
-
-    @commands.command(name='removepool')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='removepool')
     @IsAdmin()
-    async def OnRemoveMapPool(self, ctx, *name):
+    @app_commands.describe(name='The name of the map pool you want to remove. This is not case sensitive.')
+    async def OnRemoveMapPool(self, interaction:discord.Interaction, name:str):
         """Removes a map pool
         
            **string:** <name>
            The name of the map pool you want to remove. This is not case sensitive. 
         """
 
-        if (len(name) == 0):
-            raise EmptyName()
+        if (not botSettings.DoesMapPoolExist(name)):
+            raise InvalidMapPool(name)
 
-        combinedName = ' '.join(name)
+        botSettings.RemoveMapPool(name)
+        await SendMessage(interaction, description='`{}` has been removed as a map pool.'.format(name), color=discord.Color.blue())
 
-        if (not botSettings.DoesMapPoolExist(combinedName)):
-            raise InvalidMapPool(combinedName)
-
-        botSettings.RemoveMapPool(combinedName)
-        await SendMessage(ctx, description='`{}` has been removed as a map pool.'.format(combinedName), color=discord.Color.blue())
-
-    @commands.command(name='setpooltype')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='setpooltype')
     @IsAdmin()
-    async def OnSetMapPoolType(self, ctx, type:MapPoolType, *name):
+    @app_commands.describe(name='The name of the map pool you want to modify. This is not case sensitive.', type='The type of Map Pool you want to have.')
+    async def OnSetMapPoolType(self, interaction:discord.Interaction, name:str, type:MapPoolType):
         """Sets an existing map pool's type
+
+           **string:** <name>
+           The name of the map pool you want to modify. This is not case sensitive.
 
            **string|int:** <type>
            The type of Map Pool you want to have.
@@ -656,86 +649,68 @@ class AdminCommands(commands.Cog):
            - c (Custom map list)
            - exclude (All maps excluding specified)
            - e (All maps excluding specified)
-
-           **string:** <name>
-           The name of the map pool you want to modify. This is not case sensitive.
         """
         if (type == MapPoolType.INVALID):
             raise InvalidMapPoolType(type)
 
-        if (len(name) == 0):
-            raise EmptyName()
+        if (not botSettings.DoesMapPoolExist(name)):
+            raise InvalidMapPool(name)
 
-        combinedName = ' '.join(name)
+        botSettings.pools[name.lower()].SetType(type.value)
+        await SendMessage(interaction, description='`{}` has changed Map Pool type to `{}`'.format(name, type.name), color=discord.Color.blue())
 
-        if (not botSettings.DoesMapPoolExist(combinedName)):
-            raise InvalidMapPool(combinedName)
-
-        botSettings.pools[combinedName.lower()].SetType(type.value)
-        await SendMessage(ctx, description='`{}` has changed Map Pool type to `{}`'.format(combinedName, type.name), color=discord.Color.blue())
-
-    @commands.command(name='addpoolmap')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='addpoolmap')
     @IsAdmin()
-    async def OnAddMapPoolMap(self, ctx, mapName:str, *poolName):
+    @app_commands.describe(pool_name='The name of the map pool you want to add it to. This is not case sensitive.', map_name='The name of the map you want to add. This is not case sensitive.')
+    async def OnAddMapPoolMap(self, interaction:discord.Interaction, pool_name:str, map_name:str):
         """Adds a map to a map pool
 
-           **string:** <mapName>
-           The name of the map you want to add. This is not case sensitive. If you want multiple words, surround them with double quotes "like this".
+           **string:** <pool_name>
+           The name of the map pool you want to add it to. This is not case sensitive. 
 
-           **string:** <poolName>
-           The name of the map pool you want to add it to. This is not case sensitive. No quotes needed.
+           **string:** <map_name>
+           The name of the map you want to add. This is not case sensitive.
         """
 
-        if (not botSettings.DoesMapExist(mapName)):
-            raise InvalidMap(mapName)
+        if (not botSettings.DoesMapExist(map_name)):
+            raise InvalidMap(map_name)
 
-        mapProperName = botSettings.GetMapProperName(mapName)
+        mapProperName = botSettings.GetMapProperName(map_name)
 
-        if (len(poolName) == 0):
-            raise EmptyName()
+        if (not botSettings.DoesMapPoolExist(pool_name)):
+            raise InvalidMapPool(pool_name)
 
-        combinedPoolName = ' '.join(poolName)
+        if (botSettings.DoesMapPoolMapExist(pool_name, mapProperName)):
+            raise MapPoolMapExists(pool_name, mapProperName)
 
-        if (not botSettings.DoesMapPoolExist(combinedPoolName)):
-            raise InvalidMapPool(combinedPoolName)
+        botSettings.AddMapPoolMap(pool_name, mapProperName)
+        await SendMessage(interaction, description='`{}` has been added to map pool `{}`.'.format(mapProperName, pool_name), color=discord.Color.blue())
 
-        if (botSettings.DoesMapPoolMapExist(combinedPoolName, mapProperName)):
-            raise MapPoolMapExists(combinedPoolName, mapProperName)
-
-        botSettings.AddMapPoolMap(combinedPoolName, mapProperName)
-        await SendMessage(ctx, description='`{}` has been added to map pool `{}`.'.format(mapProperName, combinedPoolName), color=discord.Color.blue())
-
-    @commands.command(name='removepoolmap')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='removepoolmap')
     @IsAdmin()
-    async def OnRemoveMapPoolMap(self, ctx, mapName:str, *poolName):
+    @app_commands.describe(pool_name='The name of the map pool you want to remove it from. This is not case sensitive.', map_name='The name of the map you want to remove. This is not case sensitive.')
+    async def OnRemoveMapPoolMap(self, interaction:discord.Interaction, pool_name:str, map_name:str):
         """Removes a map from a map pool
 
-           **string:** <mapName>
-           The name of the map you want to remove. This is not case sensitive. If you want multiple words, surround them with double quotes "like this"..
+           **string:** <pool_name>
+           The name of the map pool you want to remove it from. This is not case sensitive. 
 
-           **string:** <poolName>
-           The name of the map pool you want to remove it from. This is not case sensitive. No quotes needed.
+           **string:** <map_name>
+           The name of the map you want to remove. This is not case sensitive. 
         """
-        if (not botSettings.DoesMapExist(mapName)):
-            raise InvalidMap(mapName)
+        if (not botSettings.DoesMapExist(map_name)):
+            raise InvalidMap(map_name)
 
-        mapProperName = botSettings.GetMapProperName(mapName)
+        mapProperName = botSettings.GetMapProperName(map_name)
 
-        if (len(poolName) == 0):
-            raise EmptyName()
+        if (not botSettings.DoesMapPoolExist(pool_name)):
+            raise InvalidMapPool(pool_name)
 
-        combinedPoolName = ' '.join(poolName)
+        if (not botSettings.DoesMapPoolMapExist(pool_name, mapProperName)):
+            raise InvalidMapPoolMap(pool_name, mapProperName)
 
-        if (not botSettings.DoesMapPoolExist(combinedPoolName)):
-            raise InvalidMapPool(combinedPoolName)
-
-        if (not botSettings.DoesMapPoolMapExist(combinedPoolName, mapProperName)):
-            raise InvalidMapPoolMap(combinedPoolName, mapProperName)
-
-        botSettings.RemoveMapPoolMap(combinedPoolName, mapProperName)
-        await SendMessage(ctx, description='`{}` has been removed from map pool `{}`.'.format(mapProperName, combinedPoolName), color=discord.Color.blue())
+        botSettings.RemoveMapPoolMap(pool_name, mapProperName)
+        await SendMessage(interaction, description='`{}` has been removed from map pool `{}`.'.format(mapProperName, pool_name), color=discord.Color.blue())
     
     @GuildCommand(name='leaderboard')
     @IsAdmin()
@@ -796,10 +771,11 @@ class AdminCommands(commands.Cog):
         else:
             await SendMessage(interaction, title=title, description=description, footer=footer, color=discord.Color.blue(), ephemeral=not broadcast)
 
-    @commands.command('recallmatch')
-    @IsValidChannel(ChannelType.REPORT)
+    @GuildCommand(name='recallmatch')
     @IsAdmin()
-    async def OnRecallMatch(self, ctx, matchID:int, newResult:MatchResult):
+    @app_commands.describe(match_id='The unique ID of the match you want to modify. This will be the ID shown in any of the various match related messages.', 
+        new_result='The new result you want to match to have.')
+    async def OnRecallMatch(self, interaction:discord.Interaction, match_id:int, new_result:MatchResult):
         """Lets you change the a match's result
 
            **int:** <matchID>
@@ -819,20 +795,22 @@ class AdminCommands(commands.Cog):
            - t2 (Team 2 Victory)
            - cancel (Cancelled)
         """
-        print('User {} is recalling the match {} with a new result: {}'.format(ctx.author, matchID, newResult))
+        print('User {} is recalling the match {} with a new result: {}'.format(interaction.user, match_id, new_result))
 
-        if (newResult == MatchResult.INVALID):
-            raise InvalidMatchResult(newResult)
+        if (new_result == MatchResult.INVALID):
+            raise InvalidMatchResult(new_result)
 
         # Get the match from the database if it exists
-        match = MatchHistoryData.objects(_matchUniqueID=matchID).first()
+        match = MatchHistoryData.objects(_matchUniqueID=match_id).first()
 
         # The match ID is either invalid or we have no records of the match
         if (match is None):
-            raise MatchIDNotFound(matchID)
+            raise MatchIDNotFound(match_id)
 
-        if (match._result == newResult.value):
-            raise MatchResultIdentical(newResult)
+        if (match._result == new_result.value):
+            raise MatchResultIdentical(new_result)
+
+        await SendMessage(interaction, description='Recalling match {} with a new result: {}'.format(match_id, new_result), color=discord.Color.blue())
 
         def GetTeamField(teamName:str, teamResult:TeamResult):
             teamField = {}
@@ -860,21 +838,21 @@ class AdminCommands(commands.Cog):
 
         team1Name = 'Blue :blue_square:'
         team2Name = 'Orange :orange_square:'
-        title = 'Match Results: Game #{}'.format(matchID)
-        footer = 'This match was re-called by {}'.format(ctx.author)
+        title = 'Match Results: Game #{}'.format(match_id)
+        footer = 'This match was re-called by {}'.format(interaction.user)
 
         players = []
 
         # Determine the team results for before and after to guide how we update the data
         team1PrevResult = TeamResult.WIN if match._result == MatchResult.TEAM1VICTORY.value else TeamResult.LOSE
         team2PrevResult = TeamResult.WIN if match._result == MatchResult.TEAM2VICTORY.value else TeamResult.LOSE
-        team1NewResult = TeamResult.WIN if newResult == MatchResult.TEAM1VICTORY else TeamResult.LOSE
-        team2NewResult = TeamResult.WIN if newResult == MatchResult.TEAM2VICTORY else TeamResult.LOSE
+        team1NewResult = TeamResult.WIN if new_result == MatchResult.TEAM1VICTORY else TeamResult.LOSE
+        team2NewResult = TeamResult.WIN if new_result == MatchResult.TEAM2VICTORY else TeamResult.LOSE
 
         if (match._result == MatchResult.CANCELLED.value):
             team1PrevResult = TeamResult.CANCEL
             team2PrevResult = TeamResult.CANCEL
-        if (newResult == MatchResult.CANCELLED):
+        if (new_result == MatchResult.CANCELLED):
             team1NewResult = TeamResult.CANCEL
             team2NewResult = TeamResult.CANCEL
 
@@ -907,14 +885,14 @@ class AdminCommands(commands.Cog):
 
             isFirst = AddToField(team2Field, isFirst, player._id, sign, oldMMR, delta, newMMR, oldRole, newRole)
 
-        match._result = newResult.value
+        match._result = new_result.value
         match.save()
 
         description = '**Creation Time:** {}\n**Map:** {}\n**Map Pool:** {}'.format(match._creationTime, match._map, match._pool)
 
-        if (newResult == MatchResult.TEAM1VICTORY):
+        if (new_result == MatchResult.TEAM1VICTORY):
             await SendChannelMessage(botSettings.resultsChannel, title=title, description=description, fields=[team1Field, team2Field], footer=footer, color=discord.Color.blue())
-        elif (newResult == MatchResult.TEAM2VICTORY):
+        elif (new_result == MatchResult.TEAM2VICTORY):
             await SendChannelMessage(botSettings.resultsChannel, title=title, description=description, fields=[team2Field, team1Field], footer=footer, color=discord.Color.blue())
         else:
             description += '\nnThis match has been cancelled.'
@@ -940,8 +918,8 @@ class AdminCommands(commands.Cog):
             previousRole, newRole = botSettings.GetMMRRoleByID(player)
 
             # Remove all their previous mmr roles and readd the correct one
-            await RemoveRoles(ctx, member, *mmrRoles, errorMessage='Failed to remove previous rank from {0.mention}. Please try again.'.format(member))
-            await AddRoles(ctx, member, newRole.role, botSettings.registeredRole, errorMessage='Failed to add current rank to {0.mention}. Please try again.'.format(member))
+            await RemoveRoles(interaction, member, *mmrRoles, errorMessage='Failed to remove previous rank from {0.mention}. Please try again.'.format(member))
+            await AddRoles(interaction, member, newRole.role, botSettings.registeredRole, errorMessage='Failed to add current rank to {0.mention}. Please try again.'.format(member))
 
         await SendChannelMessage(botSettings.adminChannel, description='The ranks of all players in match #{} have been updated.'.format(match._matchUniqueID), color=discord.Color.blue())
 
@@ -1044,10 +1022,10 @@ class AdminCommands(commands.Cog):
         # Now try to swap
         await matchService.SwapPlayers(interaction, player1, player2)
  
-    @commands.command('removestrat')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='removestrat')
     @IsAdmin()
-    async def OnRemoveStratRouletteStrat(self, ctx, index:int):
+    @app_commands.describe(index='The index of the strat you want to remove.')
+    async def OnRemoveStratRouletteStrat(self, interaction:discord.Interaction, index:int):
         """Removes a Strat Roulette strat 
            
            **int:** <index>
@@ -1061,25 +1039,22 @@ class AdminCommands(commands.Cog):
 
         strat = botSettings.strats[index].strat
         title = botSettings.strats[index].title
-        type = await StratRouletteTeamType.convert(ctx, botSettings.strats[index].type)
+        type = await StratRouletteTeamType.convert(botSettings.strats[index].type)
         botSettings.RemoveStratRouletteStrat(index)
 
         message = '[{}] Strat Removed `[{}] {}`'.format(type.name, title, strat)
-        await SendMessage(ctx, description=message, color=discord.Color.blue())
+        await SendMessage(interaction, description=message, color=discord.Color.blue())
 
-    @OnAddMap.error
-    @OnRemoveMap.error
     @OnRecallMatch.error
-    @OnSetMapThumbnail.error
-    @OnAddMapPool.error
-    @OnRemoveMapPool.error
-    @OnSetMapPoolType.error
-    @OnAddMapPoolMap.error
-    @OnRemoveMapPoolMap.error
     @OnRemoveStratRouletteStrat.error
-    async def errorHandling(self, ctx, error):
-        await HandleError(ctx, error)
-
+    @OnRemoveMapPoolMap.error
+    @OnAddMapPoolMap.error
+    @OnSetMapPoolType.error
+    @OnRemoveMapPool.error
+    @OnAddMapPool.error
+    @OnSetMapThumbnail.error
+    @OnRemoveMap.error
+    @OnAddMap.error
     @OnShowLeaderboards.error
     @OnRefreshUsers.error
     @OnRefreshUser.error

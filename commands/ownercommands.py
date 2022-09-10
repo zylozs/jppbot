@@ -186,7 +186,7 @@ class OwnerCommands(commands.Cog):
         message = ''
         index = 0
         for quip in botSettings.quips:
-            type = await QuipType.convert(ctx, quip.type)
+            type = await QuipType.convert(quip.type)
             additionalInfo = ' '
 
             if (type == QuipType.SPECIFIC_USER):
@@ -232,7 +232,7 @@ class OwnerCommands(commands.Cog):
             raise InvalidQuipIndex(index)
 
         quip = botSettings.quips[index].quip
-        type = await QuipType.convert(ctx, botSettings.quips[index].type)
+        type = await QuipType.convert(botSettings.quips[index].type)
         user = botSettings.quips[index].user
         botSettings.RemoveQuip(index)
 
