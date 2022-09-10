@@ -1,4 +1,4 @@
-from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, EmptyName, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip, InvalidStratIndex, UserNotActive
+from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, InvalidChannelType, InvalidRole, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, EmptyName, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip, InvalidStratIndex, UserNotActive
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
 from data.siegemap import CantRerollMap, MapExists, InvalidMap 
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
@@ -112,6 +112,12 @@ async def HandleAppError(interaction:discord.Interaction, error:app_commands.App
 
     elif (isinstance(error.original, InvalidStratRouletteTeamType)):
         await SendMessage(interaction, description='`{}` is not a valid Strat Roulette Team Type.'.format(error.original.argument), color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidChannelType)):
+        await SendMessage(interaction, description='INVALID is not a valid channel type.', color=discord.Color.red())
+
+    elif (isinstance(error.original, InvalidRole)):
+        await SendMessage(interaction, description='`@everyone` is not a valid role.', color=discord.Color.red())
 
     elif (isinstance(error.original, NoMMRRoles)):
         await SendMessage(interaction, description='There are no ranks.', color=discord.Color.red())

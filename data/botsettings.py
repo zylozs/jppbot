@@ -52,6 +52,10 @@ class GuildRoleMismatch(commands.BadArgument):
         self.argument = argument
         super().__init__('Role {0.mention}" is not in the same guild as the text channels.'.format(argument))
 
+class InvalidRole(commands.BadArgument):
+    def __init__(self):
+        super().__init__('`@everyone` is not a valid role.')
+
 class InvalidGuild(commands.BadArgument):
     def __init__(self):
         super().__init__('There is no guild set.')
@@ -89,6 +93,10 @@ class InvalidStratIndex(commands.BadArgument):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('{0} is not a valid Strat Roulette strat index.'.format(argument))
+
+class InvalidChannelType(commands.BadArgument):
+    def __init__(self):
+        super().__init__('INVALID is not a valid channel type.')
 
 class ChannelType(Enum):
     LOBBY = "lobby"

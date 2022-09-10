@@ -46,6 +46,9 @@ async def SendMessages(ctx, messages, **kwargs):
 async def SendMessage(interaction:discord.Interaction, ephemeral=False, **kwargs):
     await interaction.response.send_message(embed=CreateEmbed(**kwargs), ephemeral=ephemeral)
 
+async def SendMessageEdit(interaction:discord.Interaction, **kwargs):
+    await interaction.edit_original_response(embed=CreateEmbed(**kwargs))
+
 async def SendMessages(interaction:discord.Interaction, messages, **kwargs):
     if (len(messages) >= 1):
         await interaction.response.send_message(embed=CreateEmbed(fields=messages[0], **kwargs))

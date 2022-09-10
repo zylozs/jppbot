@@ -1,6 +1,6 @@
 from pydoc import describe
 from discord.ext import commands
-from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch , InvalidGuild, RegisteredRoleUnitialized, EmptyName, InvalidStratIndex
+from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch, InvalidChannelType , InvalidGuild, InvalidRole, RegisteredRoleUnitialized, EmptyName, InvalidStratIndex
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, InvalidMatchResult, MatchIDNotFound, MatchResultIdentical, MatchResult
 from data.mmrrole import MMRRoleExists, MMRRoleRangeConflict, InvalidMMRRole, NoMMRRoles
@@ -10,7 +10,7 @@ from data.stratroulettedata import StratRouletteData, StratRouletteTeamType, NoS
 from services.matchservice import TeamResult, PlayerNotQueuedOrInGame, PlayersNotSwapable
 from utils.botutils import IsAdmin, IsValidChannel, AddRoles, RemoveRoles, GuildCommand
 from utils.errorutils import HandleAppError, HandleError
-from utils.chatutils import SendMessage, SendChannelMessage
+from utils.chatutils import SendMessage, SendChannelMessage, SendMessageEdit
 from globals import *
 from mongoengine import disconnect
 from discord import app_commands
@@ -32,10 +32,10 @@ class AdminCommands(commands.Cog):
         disconnect() # disconect our MongoDB instance
         await self.bot.close() # close our bot instance
 
-    @commands.command(name='forceregister')
-    @IsValidChannel(ChannelType.REGISTER)
+    @GuildCommand(name='forceregister')
     @IsAdmin()
-    async def OnForceRegisterPlayer(self, ctx, member:discord.Member, initialMMR:int, *name):
+    @app_commands.describe(member='The member you want to register.', mmr='The initial MMR you want to give the member.')
+    async def OnForceRegisterPlayer(self, interaction:discord.Interaction, member:discord.Member, mmr:int):
         """Registers a player
         
            **discord.Member:** <member>
@@ -49,15 +49,9 @@ class AdminCommands(commands.Cog):
 
            **int:** <initialMMR>
            The initial MMR you want to give the user with the bot.
-
-           **string:** <name>
-           The name you want to give the user with the bot. Spaces and special characters are allowed.
         """
-        if (len(name) == 0):
-            raise EmptyName()
-
-        combinedName = ' '.join(name)
-        print('User {0.author} is force registering {1} with name {2} and initial mmr of {3}'.format(ctx, member, combinedName, initialMMR))
+        name = '{}'.format(member.name)
+        print('User {0.user} is force registering {1} with name {2} and initial mmr of {3}'.format(interaction, member, name, mmr))
 
         if (botSettings.registeredRole is None):
             raise RegisteredRoleUnitialized()
@@ -66,15 +60,15 @@ class AdminCommands(commands.Cog):
             raise UserAlreadyRegistered(member)
 
         try:
-            await member.add_roles(botSettings.registeredRole, reason='User {0.name} used the forceregister command'.format(ctx.author))
+            await member.add_roles(botSettings.registeredRole, reason='User {0.name} used the forceregister command'.format(interaction.user))
 
-            botSettings.RegisterUser(member, combinedName)
+            botSettings.RegisterUser(member, name)
 
-            botSettings.SetMMR(member, initialMMR)
+            botSettings.SetMMR(member, mmr)
 
-            await SendMessage(ctx, description='You have registered {0.mention} as `{1}` with an initial MMR of {2}.'.format(member, combinedName, initialMMR), color=discord.Color.blue())
+            await SendMessage(interaction, description='You have registered {0.mention} as `{1}` with an initial MMR of {2}.'.format(member, name, mmr), color=discord.Color.blue())
         except discord.HTTPException:
-            await SendMessage(ctx, description='Registration failed. Please try again.', color=discord.Color.red())
+            await SendMessage(interaction, description='Registration failed. Please try again.', color=discord.Color.red())
 
     @GuildCommand(name='clearqueue')
     @IsAdmin()
@@ -118,10 +112,10 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='{0.mention} is force starting the match!'.format(interaction.user), color=discord.Color.blue())
         await matchService.StartMatch(fill_with_fake_players)
 
-    @commands.command(name='clearchannel')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='clearchannel')
     @IsAdmin()
-    async def OnClearChannel(self, ctx, channelType:ChannelType):
+    @app_commands.describe(channel_type='The channel type to clear from the bot\'s settings.')
+    async def OnClearChannel(self, interaction:discord.Interaction, channel_type:ChannelType):
         """Clears a channel from use with the bot
 
            **string:** <channelType>
@@ -132,30 +126,33 @@ class AdminCommands(commands.Cog):
            - report
            - admin
         """
-        print('Channel type: {}'.format(channelType))
+        print('Channel type: {}'.format(channel_type))
 
-        if (channelType is ChannelType.LOBBY):
+        if (channel_type == ChannelType.INVALID):
+            raise InvalidChannelType()
+
+        if (channel_type is ChannelType.LOBBY):
             channel = botSettings.lobbyChannel
             botSettings.SetLobbyChannel(None)
-        elif (channelType is ChannelType.REGISTER):
+        elif (channel_type is ChannelType.REGISTER):
             channel = botSettings.registerChannel
             botSettings.SetRegisterChannel(None)
-        elif (channelType is ChannelType.ADMIN):
+        elif (channel_type is ChannelType.ADMIN):
             channel = botSettings.adminChannel
             botSettings.SetAdminChannel(None)
-        elif (channelType is ChannelType.RESULTS):
+        elif (channel_type is ChannelType.RESULTS):
             channel = botSettings.resultsChannel
             botSettings.SetResultsChannel(None)
-        elif (channelType is ChannelType.REPORT):
+        elif (channel_type is ChannelType.REPORT):
             channel = botSettings.reportChannel
             botSettings.SetReportChannel(None)
 
-        await SendMessage(ctx, description='{0.mention} has been cleared as the {1.value} channel'.format(channel, channelType), color=discord.Color.blue())
+        await SendMessage(interaction, description='{0.mention} has been cleared as the {1.value} channel'.format(channel, channel_type), color=discord.Color.blue())
 
-    @commands.command(name='setchannel')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='setchannel')
     @IsAdmin()
-    async def OnSetChannel(self, ctx, channel:discord.TextChannel, channelType:ChannelType):
+    @app_commands.describe(channel='The text channel you want to use for the channel type.', channel_type='The channel type to associate with the text channel.')
+    async def OnSetChannel(self, interaction:discord.Interaction, channel:discord.TextChannel, channel_type:ChannelType):
         """Sets a channel for use with the bot
 
            **discord.TextChannel:** <channel>
@@ -173,7 +170,7 @@ class AdminCommands(commands.Cog):
            - report
            - admin
         """
-        print('Setting Channel: {} type: {}'.format(channel, channelType))
+        print('Setting Channel: {} type: {}'.format(channel, channel_type))
 
         # setup guild if missing
         if (botSettings.guild is None):
@@ -181,23 +178,25 @@ class AdminCommands(commands.Cog):
         elif (botSettings.guild is not channel.guild):
             raise GuildTextChannelMismatch(channel)
 
-        if (channelType is ChannelType.LOBBY):
+        if (channel_type is ChannelType.INVALID):
+            raise InvalidChannelType()
+
+        if (channel_type is ChannelType.LOBBY):
             botSettings.SetLobbyChannel(channel)
-        elif (channelType is ChannelType.REGISTER):
+        elif (channel_type is ChannelType.REGISTER):
             botSettings.SetRegisterChannel(channel)
-        elif (channelType is ChannelType.ADMIN):
+        elif (channel_type is ChannelType.ADMIN):
             botSettings.SetAdminChannel(channel)
-        elif (channelType is ChannelType.RESULTS):
+        elif (channel_type is ChannelType.RESULTS):
             botSettings.SetResultsChannel(channel)
-        elif (channelType is ChannelType.REPORT):
+        elif (channel_type is ChannelType.REPORT):
             botSettings.SetReportChannel(channel)
 
-        await SendMessage(ctx, description='{0.mention} has been set as the {1.value} channel'.format(channel, channelType), color=discord.Color.blue())
+        await SendMessage(interaction, description='{0.mention} has been set as the {1.value} channel'.format(channel, channel_type), color=discord.Color.blue())
 
-    @commands.command(name='channels')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='channels')
     @IsAdmin()
-    async def OnShowChannels(self, ctx):
+    async def OnShowChannels(self, interaction:discord.Interaction):
         """Shows the channels used by the bot"""
         print('Showing channels')
 
@@ -207,12 +206,12 @@ class AdminCommands(commands.Cog):
         description+='Results Channel: {}\n'.format('Not setup' if botSettings.resultsChannel is None else botSettings.resultsChannel.mention)
         description+='Admin Channel: {}'.format('Not setup' if botSettings.adminChannel is None else botSettings.adminChannel.mention)
 
-        await SendMessage(ctx, description=description, color=discord.Color.blue())
+        await SendMessage(interaction, description=description, color=discord.Color.blue())
 
-    @commands.command(name='setregisteredrole')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='setregisteredrole')
     @IsAdmin()
-    async def OnSetRegisteredRole(self, ctx, role:discord.Role):
+    @app_commands.describe(role='The role you want to use for registered players.')
+    async def OnSetRegisteredRole(self, interaction:discord.Interaction, role:discord.Role):
         """Sets the registered role
 
            **discord.Role:** <role>
@@ -224,6 +223,9 @@ class AdminCommands(commands.Cog):
         """
         print('Setting Registered Role: {}'.format(role))
 
+        if (role.name == '@everyone' or role.name == '@here'):
+            raise InvalidRole(role)
+
         # setup guild if missing
         if (botSettings.guild is None):
             botSettings.SetGuild(role.guild)
@@ -233,15 +235,15 @@ class AdminCommands(commands.Cog):
         if (botSettings.registeredRole is not None):
             title = 'Warning: You are changing the registered role.'
             description = 'This will not affect players who are already registered. The previous role {0.mention} will not be automatically changed on registered players, however the role is purely cosmetic.'.format(botSettings.registeredRole)
-            await SendMessage(ctx, title=title, description=description, color=discord.Color.gold())
+            await SendChannelMessage(interaction.channel, title=title, description=description, color=discord.Color.gold())
 
         botSettings.SetRegisteredRole(role)
-        await SendMessage(ctx, description='The registered role has been updated.', color=discord.Color.blue())
+        await SendMessage(interaction, description='The registered role has been updated.', color=discord.Color.blue())
 
-    @commands.command(name='setadminrole')
-    @commands.has_permissions(administrator=True)
-    @IsValidChannel(ChannelType.ADMIN)
-    async def OnSetAdminRole(self, ctx, role:discord.Role):
+    @GuildCommand(name='setadminrole')
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.describe(role='The role you want to use to give admin priviledges with the bot.')
+    async def OnSetAdminRole(self, interaction:discord.Interaction, role:discord.Role):
         """Sets the admin role
 
            **discord.Role:** <role>
@@ -253,6 +255,9 @@ class AdminCommands(commands.Cog):
         """
         print('Setting Admin Role: {}'.format(role))
 
+        if (role.name == '@everyone' or role.name == '@here'):
+            raise InvalidRole(role)
+
         # setup guild if missing
         if (botSettings.guild is None):
             botSettings.SetGuild(role.guild)
@@ -262,15 +267,18 @@ class AdminCommands(commands.Cog):
         if (botSettings.adminRole is not None):
             title = 'Warning: You are changing the admin role.'
             description = 'This may impact members with the previous admin role {0.mention}. They will need their role updated to regain admin priviledges with the bot.'.format(botSettings.adminRole)
-            await SendMessage(ctx, title=title, description=description, color=discord.Color.gold())
+            await SendChannelMessage(interaction.channel, title=title, description=description, color=discord.Color.gold())
 
         botSettings.SetAdminRole(role)
-        await SendMessage(ctx, description='The admin role has been updated.', color=discord.Color.blue())
+        await SendMessage(interaction, description='The admin role has been updated.', color=discord.Color.blue())
 
-    @commands.command(name='addrank')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='addrank')
     @IsAdmin()
-    async def OnAddRank(self, ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
+    @app_commands.describe(role='The role you want to use for a rank.', 
+        mmr_min='The minimum MMR for this rank (inclusive).', 
+        mmr_max='The maximum MMR for this rank (inclusive).', 
+        mmr_delta='The MMR increase or decrease after each match.')
+    async def OnAddRank(self, interaction:discord.Interaction, role:discord.Role, mmr_min:int, mmr_max:int, mmr_delta:int):
         """Adds a rank
 
            **discord.Role:** <role>
@@ -289,7 +297,10 @@ class AdminCommands(commands.Cog):
            **int:** <mmrDelta>
            The MMR increase or decrease after each match
         """
-        print('Adding new rank: {} min: {} max: {} delta: {}'.format(role, mmrMin, mmrMax, mmrDelta))
+        print('Adding new rank: {} min: {} max: {} delta: {}'.format(role, mmr_min, mmr_max, mmr_delta))
+
+        if (role.name == '@everyone' or role.name == '@here'):
+            raise InvalidRole()
 
         # setup guild if missing
         if (botSettings.guild is None):
@@ -300,16 +311,19 @@ class AdminCommands(commands.Cog):
         if (botSettings.IsValidMMRRole(role)):
             raise MMRRoleExists(role)
 
-        if (not botSettings.IsMMRRoleRangeValid(mmrMin, mmrMax)):
+        if (not botSettings.IsMMRRoleRangeValid(mmr_min, mmr_max)):
             raise MMRRoleRangeConflict()
 
-        botSettings.AddMMRRole(role, mmrMin, mmrMax, mmrDelta)
-        await SendMessage(ctx, title='New Rank Added', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
+        botSettings.AddMMRRole(role, mmr_min, mmr_max, mmr_delta)
+        await SendMessage(interaction, title='New Rank Added', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmr_min, mmr_max, mmr_delta), color=discord.Color.blue())
 
-    @commands.command(name='updaterank')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='updaterank')
     @IsAdmin()
-    async def OnUpdateRank(self, ctx, role:discord.Role, mmrMin:int, mmrMax:int, mmrDelta:int):
+    @app_commands.describe(role='The role associated with the rank you want to update.',
+        mmr_min='The minimum MMR for this rank (inclusive).', 
+        mmr_max='The maximum MMR for this rank (inclusive).', 
+        mmr_delta='The MMR increase or decrease after each match.')
+    async def OnUpdateRank(self, interaction:discord.Interaction, role:discord.Role, mmr_min:int, mmr_max:int, mmr_delta:int):
         """Updates a rank's mmr range and delta
 
            **discord.Role:** <role>
@@ -328,7 +342,10 @@ class AdminCommands(commands.Cog):
            **int:** <mmrDelta>
            The MMR increase or decrease after each match
         """
-        print('Updating existing rank: {} min: {} max: {} delta: {}'.format(role, mmrMin, mmrMax, mmrDelta))
+        print('Updating existing rank: {} min: {} max: {} delta: {}'.format(role, mmr_min, mmr_max, mmr_delta))
+
+        if (role.name == '@everyone' or role.name == '@here'):
+            raise InvalidRole()
 
         # setup guild if missing
         if (botSettings.guild is None):
@@ -339,16 +356,16 @@ class AdminCommands(commands.Cog):
         if (not botSettings.IsValidMMRRole(role)):
             raise InvalidMMRRole(role)
 
-        if (not botSettings.IsMMRRoleRangeValid(mmrMin, mmrMax)):
+        if (not botSettings.IsMMRRoleRangeValid(mmr_min, mmr_max)):
             raise MMRRoleRangeConflict()
 
-        botSettings.UpdateMMRRole(role, mmrMin, mmrMax, mmrDelta)
-        await SendMessage(ctx, title='Rank Updated', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
+        botSettings.UpdateMMRRole(role, mmr_min, mmr_max, mmr_delta)
+        await SendMessage(interaction, title='Rank Updated', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmr_min, mmr_max, mmr_delta), color=discord.Color.blue())
 
-    @commands.command(name='removerank')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='removerank')
     @IsAdmin()
-    async def OnRemoveRank(self, ctx, role:discord.Role):
+    @app_commands.describe(role='The role associated with the rank you want to remove.')
+    async def OnRemoveRank(self, interaction:discord.Interaction, role:discord.Role):
         """Removes a rank
 
            **discord.Role:** <role>
@@ -359,6 +376,9 @@ class AdminCommands(commands.Cog):
            - name (i.e. RoleName  (case sensitive)
         """
         print('Removing rank: {}'.format(role))
+
+        if (role.name == '@everyone' or role.name == '@here'):
+            raise InvalidRole()
 
         # setup guild if missing
         if (botSettings.guild is None):
@@ -374,12 +394,15 @@ class AdminCommands(commands.Cog):
         mmrDelta = botSettings.mmrRoles[role.id].mmrDelta
 
         for player in botSettings.registeredPlayers.values():
+            if player.user is None:
+                continue
+
             member = botSettings.guild.get_member(player.user.id)
             if member is not None and role in member.roles:
-                await RemoveRoles(ctx, member, role, errorMessage='Failed to remove rank. Please try again.')
+                await RemoveRoles(interaction, member, role, errorMessage='Failed to remove rank. Please try again.')
 
         botSettings.RemoveMMRRole(role)
-        await SendMessage(ctx, title='Rank Removed', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
+        await SendMessage(interaction, title='Rank Removed', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
 
     @GuildCommand(name='setmmr')
     @IsAdmin()
@@ -428,10 +451,10 @@ class AdminCommands(commands.Cog):
 
         await SendMessage(interaction, fields=[field], color=discord.Color.blue())
 
-    @commands.command(name='refreshuser')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='refreshuser')
     @IsAdmin()
-    async def OnRefreshUser(self, ctx, member:discord.Member):
+    @app_commands.describe(member='The member you want to refresh roles on.')
+    async def OnRefreshUser(self, interaction:discord.Interaction, member:discord.Member):
         """Refresh a user's roles
         
            **discord.Member:** <member>
@@ -459,15 +482,14 @@ class AdminCommands(commands.Cog):
         previousRole, newRole = botSettings.GetMMRRole(member)
 
         # Remove all their previous mmr roles and readd the correct one
-        await RemoveRoles(ctx, member, *mmrRoles, errorMessage='Failed to remove previous rank from {0.mention}. Please try again.'.format(member))
-        await AddRoles(ctx, member, newRole.role, botSettings.registeredRole, errorMessage='Failed to add current rank to {0.mention}. Please try again.'.format(member))
+        await RemoveRoles(interaction, member, *mmrRoles, errorMessage='Failed to remove previous rank from {0.mention}. Please try again.'.format(member))
+        await AddRoles(interaction, member, newRole.role, botSettings.registeredRole, errorMessage='Failed to add current rank to {0.mention}. Please try again.'.format(member))
     
-        await SendMessage(ctx, description='Ranks have been updated on {0.mention}'.format(member), color=discord.Color.blue())
+        await SendMessage(interaction, description='Ranks have been updated on {0.mention}'.format(member), color=discord.Color.blue())
 
-    @commands.command(name='refreshusers')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='refreshusers')
     @IsAdmin()
-    async def OnRefreshUsers(self, ctx):
+    async def OnRefreshUsers(self, interaction:discord.Interaction):
         """Refresh all user roles"""
         print('Refreshing roles on all users')
 
@@ -479,7 +501,13 @@ class AdminCommands(commands.Cog):
         if (len(mmrRoles) == 0):
             raise NoMMRRoles()
 
+        # Acknowledge the request immediately since it can take a lot of time to perform the action
+        await interaction.response.defer(thinking=True)
+
         for player in botSettings.registeredPlayers.values():
+            if player.user is None:
+                continue
+
             previousRole, newRole = botSettings.GetMMRRole(player.user)
 
             member = botSettings.guild.get_member(player.user.id)
@@ -489,10 +517,10 @@ class AdminCommands(commands.Cog):
                 continue
 
             # Remove all their previous mmr roles and readd the correct one
-            await RemoveRoles(ctx, member, *mmrRoles, errorMessage='Failed to remove previous rank from {0.mention}. Please try again.'.format(member))
-            await AddRoles(ctx, member, newRole.role, botSettings.registeredRole, errorMessage='Failed to add current rank to {0.mention}. Please try again.'.format(member))
+            await RemoveRoles(interaction, member, *mmrRoles, errorMessage='Failed to remove previous rank from {0.mention}. Please try again.'.format(member))
+            await AddRoles(interaction, member, newRole.role, botSettings.registeredRole, errorMessage='Failed to add current rank to {0.mention}. Please try again.'.format(member))
 
-        await SendMessage(ctx, description='Ranks have been updated on all registered players.', color=discord.Color.blue())
+        await SendMessageEdit(interaction, description='Ranks have been updated on all registered players.', color=discord.Color.blue())
 
     @commands.command(name='addmap')
     @IsValidChannel(ChannelType.ADMIN)
@@ -709,15 +737,19 @@ class AdminCommands(commands.Cog):
         botSettings.RemoveMapPoolMap(combinedPoolName, mapProperName)
         await SendMessage(ctx, description='`{}` has been removed from map pool `{}`.'.format(mapProperName, combinedPoolName), color=discord.Color.blue())
     
-    @commands.command(name='leaderboard')
-    @IsValidChannel(ChannelType.ADMIN)
+    @GuildCommand(name='leaderboard')
     @IsAdmin()
-    async def OnShowLeaderboards(self, ctx, page:int=1):
+    @app_commands.describe(page='The page of the leaderboards you want to show.', broadcast='Whether or not to broadcast the leaderboards for everyone to see.')
+    async def OnShowLeaderboards(self, interaction:discord.Interaction, page:int=1, broadcast:bool=True):
         """Shows the leaderboards
         
            **int:** <page>
            **Default value:** 1
            The page of the leaderboards you want to show.
+
+           **bool:** <broadcast>
+           **Default value:** True
+           Whether or not to broadcast the leaderboards for everyone to see.
         """
         print('Showing leaderboards')
 
@@ -760,9 +792,9 @@ class AdminCommands(commands.Cog):
             rank += 1
 
         if (numPlayers == 0):
-            await SendMessage(ctx, title=title, description='There are currently no registered players.', color=discord.Color.blue())
+            await SendMessage(interaction, title=title, description='There are currently no registered players.', color=discord.Color.blue(), ephemeral=not broadcast)
         else:
-            await SendMessage(ctx, title=title, description=description, footer=footer, color=discord.Color.blue())
+            await SendMessage(interaction, title=title, description=description, footer=footer, color=discord.Color.blue(), ephemeral=not broadcast)
 
     @commands.command('recallmatch')
     @IsValidChannel(ChannelType.REPORT)
@@ -1035,22 +1067,10 @@ class AdminCommands(commands.Cog):
         message = '[{}] Strat Removed `[{}] {}`'.format(type.name, title, strat)
         await SendMessage(ctx, description=message, color=discord.Color.blue())
 
-    @OnClearChannel.error
-    @OnSetChannel.error
-    @OnShowChannels.error
-    @OnSetRegisteredRole.error
-    @OnSetAdminRole.error
-    @OnAddRank.error
-    @OnUpdateRank.error
-    @OnRemoveRank.error
-    @OnRefreshUser.error
-    @OnRefreshUsers.error
     @OnAddMap.error
     @OnRemoveMap.error
-    @OnShowLeaderboards.error
     @OnRecallMatch.error
     @OnSetMapThumbnail.error
-    @OnForceRegisterPlayer.error
     @OnAddMapPool.error
     @OnRemoveMapPool.error
     @OnSetMapPoolType.error
@@ -1060,6 +1080,18 @@ class AdminCommands(commands.Cog):
     async def errorHandling(self, ctx, error):
         await HandleError(ctx, error)
 
+    @OnShowLeaderboards.error
+    @OnRefreshUsers.error
+    @OnRefreshUser.error
+    @OnRemoveRank.error
+    @OnUpdateRank.error
+    @OnAddRank.error
+    @OnSetAdminRole.error
+    @OnSetRegisteredRole.error
+    @OnShowChannels.error
+    @OnSetChannel.error
+    @OnClearChannel.error
+    @OnForceRegisterPlayer.error
     @OnQuit.error
     @OnClearQueue.error
     @OnForceStartMatch.error

@@ -628,10 +628,28 @@ class BotCommands(commands.Cog):
         # Send the slap!
         await interaction.channel.send('{0.mention} slaps {1.mention} around a bit with a large trout'.format(interaction.user, member))
 
+    @GuildCommand(name='rules')
+    async def OnShowRules(self, interaction:discord.Interaction):
+        """Shows the rules of conduct
+        """
+
+        rules=['Respect your JPPeers', 'Gab should download the build', 'Dont join the lobby before 15h45 *\*cough\* Simon \*cough\**', 'Ban Clash and Oryx', 'Click Heads', 'Love Fort Boyard']
+
+        field = {}
+        field['name'] = 'Rules of JPP' 
+        field['value'] = ''
+        field['inline'] = False 
+
+        for rule in rules:
+            field['value'] += '- {}\n'.format(rule)
+
+        await SendMessage(interaction, fields=[field], color=discord.Color.blue())
+
     @OnUpdateStatus.error
     async def errorHandling(self, ctx, error):
         await HandleError(ctx, error)
 
+    @OnShowRules.error
     @OnSlapUser.error
     @OnShowStratRouletteStrats.error
     @OnAddStratRouletteStrat.error
