@@ -110,12 +110,15 @@ class BotCommands(commands.Cog):
     
     @GuildCommand(name='register', description='Allows a user to register with the bot')
     @IsValidChannel(ChannelType.REGISTER)
-    async def OnRegisterPlayer(self, interaction:discord.Interaction, name:str):
+    async def OnRegisterPlayer(self, interaction:discord.Interaction, name:str=''):
         """Allows a user to register with the bot. This enables matchmaking functionality for that user.
 
-           **string:** <name>
+           **string:** <name> (Optional)
            The name you want to use with the bot. Spaces and special characters are allowed.
         """
+        if name == '':
+            name = interaction.user.nick if interaction.user.nick else interaction.user.name
+
         print('User {0.user} is registering with name {1}'.format(interaction, name))
     
         if (botSettings.registeredRole is None):
