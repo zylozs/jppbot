@@ -1,14 +1,14 @@
 from mongoengine import Document, IntField, StringField
 from services.matchservice import TeamResult
 import discord
-from discord.ext import commands
+from discord import app_commands
 
-class UserNotRegistered(commands.BadArgument):
+class UserNotRegistered(app_commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('User {0.mention}" is not registered.'.format(argument))
 
-class UserAlreadyRegistered(commands.BadArgument):
+class UserAlreadyRegistered(app_commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('User {0.mention}" is already registered.'.format(argument))

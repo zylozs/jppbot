@@ -20,11 +20,11 @@ class ChannelTypeInvalid(commands.BadArgument):
         self.argument = argument
         super().__init__('Channel Type "{}" is not valid.'.format(argument))
 
-class RegisteredRoleUnitialized(commands.CommandError):
+class RegisteredRoleUnitialized(app_commands.AppCommandError):
     def __init__(self):
         super().__init__('The registered role has not been setup.')
 
-class AdminRoleUnitialized(commands.CommandError):
+class AdminRoleUnitialized(app_commands.AppCommandError):
     def __init__(self):
         super().__init__('The admin role has not been setup.')
 
@@ -33,12 +33,12 @@ class UserNotAdmin(app_commands.CheckFailure):
         self.argument = argument
         super().__init__('The user {0.mention} is not an admin'.format(argument))
 
-class UserNotOwner(app_commands.CheckFailure):
+class UserNotOwner(commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('The user {0.mention} is not the owner'.format(argument))
 
-class UserNotActive(commands.CommandError):
+class UserNotActive(app_commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('The user {0.mention} is not active enough.'.format(argument))
@@ -61,13 +61,13 @@ class InvalidGuild(commands.BadArgument):
     def __init__(self):
         super().__init__('There is no guild set.')
 
-class InvalidCommandChannel(commands.BadArgument):
+class InvalidCommandChannel(app_commands.CheckFailure):
     def __init__(self, argument, type):
         self.argument = argument
         self.type = type
         super().__init__('{0} is not the correct channel for {1.value} commands'.format(argument.mention if hasattr(argument, 'mention') else 'This', type))
 
-class InvalidOwnerCommandChannel(app_commands.CheckFailure):
+class InvalidOwnerCommandChannel(commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('{0.mention} is not the correct channel for owner commands'.format(argument))

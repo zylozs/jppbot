@@ -3,6 +3,7 @@ from data.playerdata import UserNotRegistered
 from utils.chatutils import SendChannelMessage, SendMessage
 from globals import *
 from discord import app_commands
+from discord.ext import commands
 from discord.utils import MISSING
 import discord
 import inspect
@@ -53,18 +54,18 @@ def IsValidChannel(channelType:ChannelType, includeAdmin=True):
     return app_commands.check(predicate)
 
 def IsPrivateMessage():
-    async def predicate(interaction:discord.Interaction):
-        if (interaction.guild is not None):
-            raise InvalidOwnerCommandChannel(interaction.channel)
+    async def predicate(ctx):
+        if (ctx.guild is not None):
+            raise InvalidOwnerCommandChannel(ctx.channel)
         return True
-    return app_commands.check(predicate)
+    return commands.check(predicate)
 
 def IsOwner():
-    async def predicate(interaction:discord.Interaction):
-        if (not botSettings.IsUserOwner(interaction.user)):
-            raise UserNotOwner(interaction.user)
+    async def predicate(ctx):
+        if (not botSettings.IsUserOwner(ctx.author)):
+            raise UserNotOwner(ctx.author)
         return True
-    return app_commands.check(predicate)
+    return commands.check(predicate)
 
 def IsAdmin():
     async def predicate(interaction:discord.Interaction):

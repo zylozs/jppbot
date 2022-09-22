@@ -49,7 +49,14 @@ class JPPBot(commands.Bot):
 
         # sync the global commands
         await self.tree.sync()
-        
+
+    # Override the default error handling to try and handle non-command errors
+    async def on_command_error(self, ctx, error):
+        command = ctx.command
+        if command and command.has_error_handler():
+            return
+
+        await HandleError(ctx, error)
 
 intents = discord.Intents.default()
 intents.members = True

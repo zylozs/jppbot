@@ -23,7 +23,20 @@ class AdminCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def MapNameAutoComplete(self, interaction:discord.Interaction, current:str):
+        maps = botSettings.GetSortedMaps()
+
+        # populates an array of Choices for all the maps that contain the same string as the user's input
+        return [ app_commands.Choice(name=_map.name, value=_map.name) for _map in maps if current.lower() in _map.name.lower() ]
+
+    async def PoolNameAutoComplete(self, interaction:discord.Interaction, current:str):
+        pools = botSettings.GetSortedMapPools()
+
+        # populates an array of Choices for all the maps that contain the same string as the user's input
+        return [ app_commands.Choice(name=pool.name, value=pool.name) for pool in pools if current.lower() in pool.name.lower() ]
+
     @GuildCommand(name='quit')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     async def OnQuit(self, interaction:discord.Interaction):
         """Shuts down the bot"""
@@ -34,6 +47,7 @@ class AdminCommands(commands.Cog):
         await self.bot.close() # close our bot instance
 
     @GuildCommand(name='forceregister')
+    @IsValidChannel(ChannelType.REGISTER)
     @IsAdmin()
     @app_commands.describe(member='The member you want to register.', mmr='The initial MMR you want to give the member.')
     async def OnForceRegisterPlayer(self, interaction:discord.Interaction, member:discord.Member, mmr:int):
@@ -72,6 +86,7 @@ class AdminCommands(commands.Cog):
             await SendMessage(interaction, description='Registration failed. Please try again.', color=discord.Color.red())
 
     @GuildCommand(name='clearqueue')
+    @IsValidChannel(ChannelType.LOBBY)
     @IsAdmin()
     async def OnClearQueue(self, interaction:discord.Interaction):
         """Clears the matchmaking queue"""
@@ -80,6 +95,7 @@ class AdminCommands(commands.Cog):
         await matchService.ClearQueue(interaction)
 
     @GuildCommand(name='kick')
+    @IsValidChannel(ChannelType.LOBBY)
     @IsAdmin()
     @app_commands.describe(member='The member you want to kick.')
     async def OnKickPlayerFromQueue(self, interaction:discord.Interaction, member:discord.Member):
@@ -99,6 +115,7 @@ class AdminCommands(commands.Cog):
         await matchService.KickFromQueue(interaction, member)
 
     @GuildCommand(name='forcestartmatch')
+    @IsValidChannel(ChannelType.LOBBY)
     @IsAdmin()
     @app_commands.rename(fill_with_fake_players='debug')
     @app_commands.describe(fill_with_fake_players='DEBUG ONLY: Fills the lobby with fake players.')
@@ -114,6 +131,7 @@ class AdminCommands(commands.Cog):
         await matchService.StartMatch(fill_with_fake_players)
 
     @GuildCommand(name='clearchannel')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(channel_type='The channel type to clear from the bot\'s settings.')
     @app_commands.choices(channel_type=[
@@ -159,6 +177,7 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='{0.mention} has been cleared as the {1.value} channel'.format(channel, type), color=discord.Color.blue())
 
     @GuildCommand(name='setchannel')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(channel='The text channel you want to use for the channel type.', channel_type='The channel type to associate with the text channel.')
     @app_commands.choices(channel_type=[
@@ -212,6 +231,7 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='{0.mention} has been set as the {1.value} channel'.format(channel, type), color=discord.Color.blue())
 
     @GuildCommand(name='channels')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     async def OnShowChannels(self, interaction:discord.Interaction):
         """Shows the channels used by the bot"""
@@ -226,6 +246,7 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description=description, color=discord.Color.blue())
 
     @GuildCommand(name='setregisteredrole')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(role='The role you want to use for registered players.')
     async def OnSetRegisteredRole(self, interaction:discord.Interaction, role:discord.Role):
@@ -259,6 +280,7 @@ class AdminCommands(commands.Cog):
 
     @GuildCommand(name='setadminrole')
     @app_commands.checks.has_permissions(administrator=True)
+    @IsValidChannel(ChannelType.ADMIN)
     @app_commands.describe(role='The role you want to use to give admin priviledges with the bot.')
     async def OnSetAdminRole(self, interaction:discord.Interaction, role:discord.Role):
         """Sets the admin role
@@ -290,6 +312,7 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='The admin role has been updated.', color=discord.Color.blue())
 
     @GuildCommand(name='addrank')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(role='The role you want to use for a rank.', 
         mmr_min='The minimum MMR for this rank (inclusive).', 
@@ -335,6 +358,7 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, title='New Rank Added', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmr_min, mmr_max, mmr_delta), color=discord.Color.blue())
 
     @GuildCommand(name='updaterank')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(role='The role associated with the rank you want to update.',
         mmr_min='The minimum MMR for this rank (inclusive).', 
@@ -380,6 +404,7 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, title='Rank Updated', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmr_min, mmr_max, mmr_delta), color=discord.Color.blue())
 
     @GuildCommand(name='removerank')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(role='The role associated with the rank you want to remove.')
     async def OnRemoveRank(self, interaction:discord.Interaction, role:discord.Role):
@@ -422,6 +447,7 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, title='Rank Removed', description='Role: {0.mention}\nMMR Range: {1}-{2}\nMMR Delta: +-{3}'.format(role, mmrMin, mmrMax, mmrDelta), color=discord.Color.blue())
 
     @GuildCommand(name='setmmr')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(member='The member you want to change the mmr of.', mmr='The mmr you want to set the member to.')
     async def OnSetMMR(self, interaction:discord.Interaction, member:discord.Member, mmr:int):
@@ -469,6 +495,7 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, fields=[field], color=discord.Color.blue())
 
     @GuildCommand(name='refreshuser')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(member='The member you want to refresh roles on.')
     async def OnRefreshUser(self, interaction:discord.Interaction, member:discord.Member):
@@ -505,6 +532,7 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='Ranks have been updated on {0.mention}'.format(member), color=discord.Color.blue())
 
     @GuildCommand(name='refreshusers')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     async def OnRefreshUsers(self, interaction:discord.Interaction):
         """Refresh all user roles"""
@@ -540,6 +568,7 @@ class AdminCommands(commands.Cog):
         await SendMessageEdit(interaction, description='Ranks have been updated on all registered players.', color=discord.Color.blue())
 
     @GuildCommand(name='addmap')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(name='The name of the map you want to add. Casing is preserved.', thumbnail_url='The url of hte image you want to use as the map\'s thumbnail.')
     async def OnAddMap(self, interaction:discord.Interaction, name:str, thumbnail_url:str =''):
@@ -561,8 +590,10 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='`{}` has been added as a map.'.format(name), color=discord.Color.blue())
 
     @GuildCommand(name='removemap')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(name='The name of the map you want to remove. This is not case sensitive.')
+    @app_commands.autocomplete(name=MapNameAutoComplete)
     async def OnRemoveMap(self, interaction:discord.Interaction, name:str):
         """Removes a map
         
@@ -578,13 +609,15 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='`{}` has been removed as a map.'.format(name), color=discord.Color.blue())	
 
     @GuildCommand(name='setmapthumbnail')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
-    @app_commands.describe(name='The name of the map you want to add. This is not case sensitive.', thumbnail_url='The url of the image you want to use as the map\'s thumbnail.')
+    @app_commands.describe(name='The name of the map you want to add a thumbnail to. This is not case sensitive.', thumbnail_url='The url of the image you want to use as the map\'s thumbnail.')
+    @app_commands.autocomplete(name=MapNameAutoComplete)
     async def OnSetMapThumbnail(self, interaction:discord.Interaction, name:str, thumbnail_url:str):
         """Changes the thumbnail for a map
 
            **string:** <name>
-           The name of the map you want to add. This is not case sensitive. 
+           The name of the map you want to add a thumbnail to. This is not case sensitive. 
 
            **string:** <thumbnailURL>
            The url of the image you want to use as the map's thumbnail. 
@@ -598,6 +631,7 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='`{}` has been set as the thumbnail for map {}.'.format(thumbnail_url, name), color=discord.Color.blue())	
 
     @GuildCommand(name='addpool')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(name='The name of the map pool you want to add. Casing is preserved.', pool_type='The type of Map Pool you want to have.')
     @app_commands.choices(pool_type=[
@@ -636,8 +670,10 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='`{}` has been added as a map pool.'.format(name), color=discord.Color.blue())
 
     @GuildCommand(name='removepool')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(name='The name of the map pool you want to remove. This is not case sensitive.')
+    @app_commands.autocomplete(name=PoolNameAutoComplete)
     async def OnRemoveMapPool(self, interaction:discord.Interaction, name:str):
         """Removes a map pool
         
@@ -652,12 +688,14 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='`{}` has been removed as a map pool.'.format(name), color=discord.Color.blue())
 
     @GuildCommand(name='setpooltype')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(name='The name of the map pool you want to modify. This is not case sensitive.', pool_type='The type of Map Pool you want to have.')
     @app_commands.choices(pool_type=[
         Choice(name='All', value=MapPoolType.ALL.value),
         Choice(name='Custom', value=MapPoolType.CUSTOM.value),
         Choice(name='Exclude', value=MapPoolType.EXCLUDE.value) ])
+    @app_commands.autocomplete(name=PoolNameAutoComplete)
     async def OnSetMapPoolType(self, interaction:discord.Interaction, name:str, pool_type:Choice[int]):
         """Sets an existing map pool's type
 
@@ -689,8 +727,10 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='`{}` has changed Map Pool type to `{}`'.format(name, type.name), color=discord.Color.blue())
 
     @GuildCommand(name='addpoolmap')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(pool_name='The name of the map pool you want to add it to. This is not case sensitive.', map_name='The name of the map you want to add. This is not case sensitive.')
+    @app_commands.autocomplete(pool_name=PoolNameAutoComplete, map_name=MapNameAutoComplete)
     async def OnAddMapPoolMap(self, interaction:discord.Interaction, pool_name:str, map_name:str):
         """Adds a map to a map pool
 
@@ -716,8 +756,10 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='`{}` has been added to map pool `{}`.'.format(mapProperName, pool_name), color=discord.Color.blue())
 
     @GuildCommand(name='removepoolmap')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(pool_name='The name of the map pool you want to remove it from. This is not case sensitive.', map_name='The name of the map you want to remove. This is not case sensitive.')
+    @app_commands.autocomplete(pool_name=PoolNameAutoComplete, map_name=MapNameAutoComplete)
     async def OnRemoveMapPoolMap(self, interaction:discord.Interaction, pool_name:str, map_name:str):
         """Removes a map from a map pool
 
@@ -742,6 +784,7 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='`{}` has been removed from map pool `{}`.'.format(mapProperName, pool_name), color=discord.Color.blue())
     
     @GuildCommand(name='leaderboard')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(page='The page of the leaderboards you want to show.', broadcast='Whether or not to broadcast the leaderboards for everyone to see.')
     async def OnShowLeaderboards(self, interaction:discord.Interaction, page:int=1, broadcast:bool=True):
@@ -801,6 +844,7 @@ class AdminCommands(commands.Cog):
             await SendMessage(interaction, title=title, description=description, footer=footer, color=discord.Color.blue(), ephemeral=not broadcast)
 
     @GuildCommand(name='recallmatch')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(match_id='The unique ID of the match you want to modify. This will be the ID shown in any of the various match related messages.', 
         new_result_type='The new result you want to match to have.')
@@ -959,8 +1003,10 @@ class AdminCommands(commands.Cog):
         await SendChannelMessage(botSettings.adminChannel, description='The ranks of all players in match #{} have been updated.'.format(match._matchUniqueID), color=discord.Color.blue())
 
     @GuildCommand(name='forcemap')
+    @IsValidChannel(ChannelType.LOBBY)
     @IsAdmin()
     @app_commands.describe(map='The map you want to force as the next map (or current map if the match has already started).')
+    @app_commands.autocomplete(map=MapNameAutoComplete)
     async def OnForceMap(self, interaction:discord.Interaction, map:str):
         """Forces the next/current map
            If there is nobody in queue and there is no match currently being played, this command is ignored. Priority is given to changing the current map if possible and changing the next map second if not.
@@ -976,8 +1022,10 @@ class AdminCommands(commands.Cog):
         await matchService.ForceMap(interaction, botSettings.GetMapProperName(map))
 
     @GuildCommand(name='setpool')
+    @IsValidChannel(ChannelType.LOBBY)
     @IsAdmin()
     @app_commands.describe(pool_name='The map pool you want to use for matchmaking.')
+    @app_commands.autocomplete(pool_name=PoolNameAutoComplete)
     async def OnSetCurrentMapPool(self, interaction:discord.Interaction, pool_name:str):
         """Sets the current Map Pool
            Sets the map pool to use for matchmaking. This will apply on all future matches that haven't already started.
@@ -994,8 +1042,10 @@ class AdminCommands(commands.Cog):
         await SendMessage(interaction, description='`{}` has been set as the current map pool.'.format(pool_name), color=discord.Color.blue())
 
     @GuildCommand(name='forcepool')
+    @IsValidChannel(ChannelType.LOBBY)
     @IsAdmin()
     @app_commands.describe(pool_name='The map pool you want to force for the matchmaking.')
+    @app_commands.autocomplete(pool_name=PoolNameAutoComplete)
     async def OnForceMapPool(self, interaction:discord.Interaction, pool_name:str):
         """Forces the current Map Pool
            Sets the map pool to use for matchmaking. This will also override the existing map pool if a match has already started, including rerolling the map if the map is not in the new map pool.
@@ -1016,6 +1066,7 @@ class AdminCommands(commands.Cog):
         await matchService.ForceMapPool(interaction, botSettings.GetMapPoolProperName(pool_name))
 
     @GuildCommand(name='rerollmap')
+    @IsValidChannel(ChannelType.LOBBY)
     @IsAdmin()
     async def OnRerollMap(self, interaction:discord.Interaction):
         """Rerolls the current map for the match"""
@@ -1027,6 +1078,7 @@ class AdminCommands(commands.Cog):
         await matchService.RerollMap(interaction, useInteraction=True)
 
     @GuildCommand(name='swap')
+    @IsValidChannel(ChannelType.LOBBY)
     @IsAdmin()
     @app_commands.describe(player1='One of the players you want to swap. They must be either in the queue or in a match that has already started.', player2='One of the players you want to swap. They must be either in the queue or in a match that has already started.')
     async def OnSwapPlayers(self, interaction:discord.Interaction, player1:discord.Member, player2:discord.Member):
@@ -1058,6 +1110,7 @@ class AdminCommands(commands.Cog):
         await matchService.SwapPlayers(interaction, player1, player2)
  
     @GuildCommand(name='removestrat')
+    @IsValidChannel(ChannelType.ADMIN)
     @IsAdmin()
     @app_commands.describe(index='The index of the strat you want to remove.')
     async def OnRemoveStratRouletteStrat(self, interaction:discord.Interaction, index:int):

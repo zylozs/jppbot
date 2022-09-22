@@ -109,6 +109,7 @@ class BotCommands(commands.Cog):
         await interaction.response.send_message(':eyes: https://www.twitch.tv/beaulo')
     
     @GuildCommand(name='register', description='Allows a user to register with the bot')
+    @IsValidChannel(ChannelType.REGISTER)
     async def OnRegisterPlayer(self, interaction:discord.Interaction, name:str):
         """Allows a user to register with the bot. This enables matchmaking functionality for that user.
 
@@ -149,6 +150,7 @@ class BotCommands(commands.Cog):
         await SendMessage(interaction, description='Your name has been changed to `{}`'.format(name), color=discord.Color.blue())
 
     @GuildCommand(name='join')
+    @IsValidChannel(ChannelType.LOBBY)
     async def OnJoinQueue(self, interaction:discord.Interaction):
         """Join the matchmaking queue"""
         print('User {0.user} is joining queue.'.format(interaction))
@@ -162,6 +164,7 @@ class BotCommands(commands.Cog):
         await matchService.JoinQueue(interaction, interaction.user)
 
     @GuildCommand(name='leave')
+    @IsValidChannel(ChannelType.LOBBY)
     async def OnLeaveQueue(self, interaction:discord.Interaction):
         """Leave the matchmaking queue"""
         print('User {0.user} is leaving queue.'.format(interaction))
@@ -175,6 +178,7 @@ class BotCommands(commands.Cog):
         await matchService.LeaveQueue(interaction, interaction.user)
 
     @GuildCommand(name='queue')
+    @IsValidChannel(ChannelType.LOBBY)
     async def OnShowQueue(self, interaction:discord.Interaction):
         """Show the matchmaking queue"""
         print('Showing queue')
@@ -182,6 +186,7 @@ class BotCommands(commands.Cog):
         await matchService.ShowQueue(interaction)
 
     @GuildCommand(name='missing')
+    @IsValidChannel(ChannelType.LOBBY)
     async def OnShowMissingPlayers(self, interaction:discord.Interaction):
         """Shows who is not in the matchmaking queue"""
         print('Showing missing players')
