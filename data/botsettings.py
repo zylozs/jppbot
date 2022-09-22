@@ -10,6 +10,7 @@ from data.stratroulettedata import StratRouletteData
 from enum import Enum
 from discord.ext import commands
 from mongoengine import Document, IntField, StringField
+from discord import app_commands
 import discord
 import random
 import math
@@ -19,25 +20,25 @@ class ChannelTypeInvalid(commands.BadArgument):
         self.argument = argument
         super().__init__('Channel Type "{}" is not valid.'.format(argument))
 
-class RegisteredRoleUnitialized(commands.CommandError):
+class RegisteredRoleUnitialized(app_commands.AppCommandError):
     def __init__(self):
         super().__init__('The registered role has not been setup.')
 
-class AdminRoleUnitialized(commands.CommandError):
+class AdminRoleUnitialized(app_commands.AppCommandError):
     def __init__(self):
         super().__init__('The admin role has not been setup.')
 
-class UserNotAdmin(commands.CommandError):
+class UserNotAdmin(app_commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('The user {0.mention} is not an admin'.format(argument))
 
-class UserNotOwner(commands.CommandError):
+class UserNotOwner(commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('The user {0.mention} is not the owner'.format(argument))
 
-class UserNotActive(commands.CommandError):
+class UserNotActive(app_commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('The user {0.mention} is not active enough.'.format(argument))
@@ -52,17 +53,21 @@ class GuildRoleMismatch(commands.BadArgument):
         self.argument = argument
         super().__init__('Role {0.mention}" is not in the same guild as the text channels.'.format(argument))
 
+class InvalidRole(commands.BadArgument):
+    def __init__(self):
+        super().__init__('`@everyone` is not a valid role.')
+
 class InvalidGuild(commands.BadArgument):
     def __init__(self):
         super().__init__('There is no guild set.')
 
-class InvalidCommandChannel(commands.BadArgument):
+class InvalidCommandChannel(app_commands.CheckFailure):
     def __init__(self, argument, type):
         self.argument = argument
         self.type = type
         super().__init__('{0} is not the correct channel for {1.value} commands'.format(argument.mention if hasattr(argument, 'mention') else 'This', type))
 
-class InvalidOwnerCommandChannel(commands.BadArgument):
+class InvalidOwnerCommandChannel(commands.CheckFailure):
     def __init__(self, argument):
         self.argument = argument
         super().__init__('{0.mention} is not the correct channel for owner commands'.format(argument))
@@ -90,6 +95,10 @@ class InvalidStratIndex(commands.BadArgument):
         self.argument = argument
         super().__init__('{0} is not a valid Strat Roulette strat index.'.format(argument))
 
+class InvalidChannelType(commands.BadArgument):
+    def __init__(self):
+        super().__init__('INVALID is not a valid channel type.')
+
 class ChannelType(Enum):
     LOBBY = "lobby"
     RESULTS = "result"
@@ -99,7 +108,7 @@ class ChannelType(Enum):
     INVALID = "invalid"
 
     @classmethod
-    async def convert(cls, ctx, argument):
+    async def convert(cls, argument):
         tempArg = argument.lower()
         returnType = ChannelType.INVALID
 

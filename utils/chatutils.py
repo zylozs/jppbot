@@ -1,13 +1,6 @@
 import discord
 
-async def SendMessage(ctx, **kwargs):
-   return await SendChannelMessage(ctx.channel, **kwargs)
-
-async def SendMessages(ctx, messages, **kwargs):
-    for message in messages:
-        await SendChannelMessage(ctx.channel, fields=message, **kwargs)
-
-async def SendChannelMessage(channel:discord.TextChannel, **kwargs):
+def CreateEmbed(**kwargs):
     messageEmbed = discord.Embed()
 
     if 'title' in kwargs:
@@ -41,7 +34,29 @@ async def SendChannelMessage(channel:discord.TextChannel, **kwargs):
     if 'thumbnail' in kwargs:
         messageEmbed.set_thumbnail(url=kwargs['thumbnail'])
 
-    message = await channel.send(embed=messageEmbed)
+    return messageEmbed
+
+async def SendMessage(interaction:discord.Interaction, ephemeral=False, **kwargs):
+    await interaction.response.send_message(embed=CreateEmbed(**kwargs), ephemeral=ephemeral)
+
+async def SendMessageEdit(interaction:discord.Interaction, **kwargs):
+    await interaction.edit_original_response(embed=CreateEmbed(**kwargs))
+
+async def SendMessages(interaction:discord.Interaction, messages, **kwargs):
+    if (len(messages) >= 1):
+        await interaction.response.send_message(embed=CreateEmbed(fields=messages[0], **kwargs))
+        messages.pop(0)
+
+    for message in messages:
+        await SendChannelMessage(interaction.channel, fields=message, **kwargs)
+
+async def SendChannelMessage(channel:discord.TextChannel, **kwargs):
+    view = None
+
+    if 'view' in kwargs:
+        view = kwargs['view']
+
+    message = await channel.send(embed=CreateEmbed(**kwargs), view=view)
 
     if 'reactions' in kwargs:
         for reaction in kwargs['reactions']:

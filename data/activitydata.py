@@ -18,7 +18,7 @@ class ActivityType(Enum):
     INVALID = 3
 
     @classmethod
-    async def convert(cls, ctx, argument):
+    async def convert(cls, argument):
         returnType = ActivityType.INVALID
 
         if (isinstance(argument, int) or argument.isnumeric()):

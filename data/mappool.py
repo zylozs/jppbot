@@ -12,6 +12,10 @@ class InvalidMapPool(commands.BadArgument):
         self.argument = argument
         super().__init__('`{}` is not a valid map pool.'.format(argument))
 
+class CantForceMapPool(commands.BadArgument):
+    def __init__(self):
+        super().__init__("Cant't force a map pool when a match isn't running")
+
 class MapPoolMapExists(commands.BadArgument):
     def __init__(self, argument, argument2):
         self.argument = argument
@@ -36,7 +40,7 @@ class MapPoolType(Enum):
     INVALID = 3
 
     @classmethod
-    async def convert(cls, ctx, argument):
+    async def convert(cls, argument):
         returnType = MapPoolType.INVALID
 
         if (isinstance(argument, int) or argument.isnumeric()):
