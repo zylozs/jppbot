@@ -6,8 +6,9 @@ from data.matchhistorydata import MatchHistoryData, InvalidMatchResult, MatchIDN
 from data.mmrrole import MMRRoleExists, MMRRoleRangeConflict, InvalidMMRRole, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap, CantRerollMap
 from data.mappool import CantForceMapPool, MapPoolExists, InvalidMapPool, MapPoolType, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
-from data.stratroulettedata import StratRouletteData, StratRouletteTeamType, NoStratRouletteStrats
+from data.stratroulettedata import InvalidStratRouletteTeam, InvalidStratRouletteTeamType, StratRouletteData, StratRouletteTeam, StratRouletteTeamType, NoStratRouletteStrats
 from services.matchservice import TeamResult, PlayerNotQueuedOrInGame, PlayersNotSwapable
+from services.stratrouletteservice import CantStartStratRoulette, CantModifyStratRoulette
 from utils.botutils import IsAdmin, IsValidChannel, AddRoles, RemoveRoles, GuildCommand
 from utils.errorutils import HandleAppError, HandleError
 from utils.chatutils import SendMessage, SendChannelMessage, SendMessageEdit
@@ -139,7 +140,9 @@ class AdminCommands(commands.Cog):
         Choice(name='Lobby', value=ChannelType.LOBBY.value),
         Choice(name='Register', value=ChannelType.REGISTER.value),
         Choice(name='Report', value=ChannelType.REPORT.value),
-        Choice(name='Results', value=ChannelType.RESULTS.value) ])
+        Choice(name='Results', value=ChannelType.RESULTS.value),
+        Choice(name='Blue Team', value=ChannelType.BLUE_TEAM.value),
+        Choice(name='Orange Team', value=ChannelType.ORANGE_TEAM.value) ])
     async def OnClearChannel(self, interaction:discord.Interaction, channel_type:Choice[str]):
         """Clears a channel from use with the bot
 
@@ -150,6 +153,8 @@ class AdminCommands(commands.Cog):
            - results
            - report
            - admin
+           - blue
+           - orange
         """
         print('Channel type: {}'.format(channel_type.value))
 
@@ -173,6 +178,12 @@ class AdminCommands(commands.Cog):
         elif (type is ChannelType.REPORT):
             channel = botSettings.reportChannel
             botSettings.SetReportChannel(None)
+        elif (type is ChannelType.BLUE_TEAM):
+            channel = botSettings.blueTeamChannel
+            botSettings.SetBlueTeamChannel(None)
+        elif (type is ChannelType.ORANGE_TEAM):
+            channel = botSettings.orangeTeamChannel
+            botSettings.SetOrangeTeamChannel(None)
 
         await SendMessage(interaction, description='{0.mention} has been cleared as the {1.value} channel'.format(channel, type), color=discord.Color.blue())
 
@@ -185,7 +196,9 @@ class AdminCommands(commands.Cog):
         Choice(name='Lobby', value=ChannelType.LOBBY.value),
         Choice(name='Register', value=ChannelType.REGISTER.value),
         Choice(name='Report', value=ChannelType.REPORT.value),
-        Choice(name='Results', value=ChannelType.RESULTS.value) ])
+        Choice(name='Results', value=ChannelType.RESULTS.value),
+        Choice(name='Blue Team', value=ChannelType.BLUE_TEAM.value),
+        Choice(name='Orange Team', value=ChannelType.ORANGE_TEAM.value) ])
     async def OnSetChannel(self, interaction:discord.Interaction, channel:discord.TextChannel, channel_type:Choice[str]):
         """Sets a channel for use with the bot
 
@@ -203,6 +216,8 @@ class AdminCommands(commands.Cog):
            - results
            - report
            - admin
+           - blue
+           - orange
         """
         print('Setting Channel: {} type: {}'.format(channel, channel_type.value))
 
@@ -227,6 +242,10 @@ class AdminCommands(commands.Cog):
             botSettings.SetResultsChannel(channel)
         elif (type is ChannelType.REPORT):
             botSettings.SetReportChannel(channel)
+        elif (type is ChannelType.BLUE_TEAM):
+            botSettings.SetBlueTeamChannel(channel)
+        elif (type is ChannelType.ORANGE_TEAM):
+            botSettings.SetOrangeTeamChannel(channel)
 
         await SendMessage(interaction, description='{0.mention} has been set as the {1.value} channel'.format(channel, type), color=discord.Color.blue())
 
@@ -241,7 +260,9 @@ class AdminCommands(commands.Cog):
         description+='Register Channel: {}\n'.format('Not setup' if botSettings.registerChannel is None else botSettings.registerChannel.mention)
         description+='Report Channel: {}\n'.format('Not setup' if botSettings.reportChannel is None else botSettings.reportChannel.mention)
         description+='Results Channel: {}\n'.format('Not setup' if botSettings.resultsChannel is None else botSettings.resultsChannel.mention)
-        description+='Admin Channel: {}'.format('Not setup' if botSettings.adminChannel is None else botSettings.adminChannel.mention)
+        description+='Admin Channel: {}\n'.format('Not setup' if botSettings.adminChannel is None else botSettings.adminChannel.mention)
+        description+='Blue Team Channel: {}\n'.format('Not setup' if botSettings.blueTeamChannel is None else botSettings.blueTeamChannel.mention)
+        description+='Orange Team Channel: {}'.format('Not setup' if botSettings.orangeTeamChannel is None else botSettings.orangeTeamChannel.mention)
 
         await SendMessage(interaction, description=description, color=discord.Color.blue())
 
@@ -1119,6 +1140,8 @@ class AdminCommands(commands.Cog):
            **int:** <index>
            The index of the strat you want to remove.
         """
+        print('Removing strat {}'.format(index))
+
         if (len(botSettings.strats) == 0):
             raise NoStratRouletteStrats()
 
@@ -1133,6 +1156,85 @@ class AdminCommands(commands.Cog):
         message = '[{}] Strat Removed `[{}] {}`'.format(type.name, title, strat)
         await SendMessage(interaction, description=message, color=discord.Color.blue())
 
+    @GuildCommand(name='startroulette')
+    @IsValidChannel(ChannelType.LOBBY)
+    @IsAdmin()
+    @app_commands.describe(force_pool='Forces the match to use the specified map pool.')
+    @app_commands.autocomplete(force_pool=PoolNameAutoComplete)
+    async def OnStartStratRouletteMatch(self, interaction:discord.Interaction, force_pool:str = ""):
+        """Starts the Strat Roulette Match
+        
+           **str:** <force_pool> (Optional)
+           Forces the match to use the specified map pool.
+        """
+        print('Starting Strat Roulette! Force Pool: {}'.format('None' if force_pool == '' else force_pool))
+
+        if (force_pool != '' and not botSettings.DoesMapPoolExist(force_pool)):
+            raise InvalidMapPool(force_pool)
+
+        if (not matchService.IsMatchInProgress()):
+            raise CantStartStratRoulette()
+
+        # TODO: Make sure the messaging isn't broken by doing this. We don't want ForceMapPool to be eating up the interaction
+        if (force_pool != ''):
+            await matchService.ForceMapPool(interaction, botSettings.GetMapPoolProperName(force_pool))
+
+        await stratRouletteService.StartMatch(interaction, matchService.GetTeam1Players(), matchService.GetTeam2Players())
+
+    @GuildCommand(name='setovertimerole')
+    @IsValidChannel(ChannelType.LOBBY)
+    @IsAdmin()
+    @app_commands.describe(team_type='The team you want to change the overtime role of.', role_type='The role you want the team to have in overtime.')
+    @app_commands.choices(team_type=[
+        Choice(name='Blue Team', value=StratRouletteTeam.BLUE.value),
+        Choice(name='Orange Team', value=StratRouletteTeam.ORANGE.value) ],
+
+        role_type=[
+        Choice(name='Attack', value=StratRouletteTeamType.ATTACKER.value),
+        Choice(name='Defense', value=StratRouletteTeamType.DEFENDER.value)
+        ])
+    async def OnSetStratRouletteOvertimeRole(self, interaction:discord.Interaction, team_type:Choice[int], role_type:Choice[int]):
+        """Overrides the current Strat Roulette Overtime Roles.
+
+           **string|int**: team_type
+           The team you want to change the overtime role of.
+           Available results (not case sensitive):
+           - 0 (Blue Team)
+           - 1 (Orange Team)
+           - blue (Blue Team)
+           - b (Blue Team)
+           - orange (Orange Team)
+           - o (Orange Team)
+
+           **string|int**: role_type
+           The role you want the team to have in overtime.
+           Available results (not case sensitive):
+           - 0 (Attack)
+           - 1 (Defense)
+           - attack (Attack)
+           - a (Attack)
+           - defense (Defense)
+           - d (Defense)
+        """
+
+        team = await StratRouletteTeam.convert(team_type.value)
+        role = await StratRouletteTeamType.convert(role_type.value)
+
+        print('Setting Strat Roulette overtime role for team {} to {}'.format(team.name, role.name))
+
+        if (team == StratRouletteTeam.INVALID):
+            raise InvalidStratRouletteTeam(team)
+
+        if (role == StratRouletteTeamType.INVALID or role == StratRouletteTeamType.BOTH):
+            raise InvalidStratRouletteTeamType(role)
+
+        if (not stratRouletteService.IsMatchInProgress()):
+            raise CantModifyStratRoulette()
+
+        await stratRouletteService.SetOvertimeRole(interaction, team, role)
+
+    @OnSetStratRouletteOvertimeRole.error
+    @OnStartStratRouletteMatch.error
     @OnRecallMatch.error
     @OnRemoveStratRouletteStrat.error
     @OnRemoveMapPoolMap.error

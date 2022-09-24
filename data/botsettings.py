@@ -105,6 +105,8 @@ class ChannelType(Enum):
     ADMIN = "admin"
     REGISTER = "register"
     REPORT = "report"
+    BLUE_TEAM = "blue"
+    ORANGE_TEAM = "orange"
     INVALID = "invalid"
 
     @classmethod
@@ -122,6 +124,10 @@ class ChannelType(Enum):
             returnType = ChannelType.REGISTER
         elif (tempArg.__contains__(ChannelType.REPORT.value)):
             returnType = ChannelType.REPORT
+        elif (tempArg.__contains__(ChannelType.BLUE_TEAM.value)):
+            returnType = ChannelType.BLUE_TEAM
+        elif (tempArg.__contains__(ChannelType.ORANGE_TEAM.value)):
+            returnType = ChannelType.ORANGE_TEAM
 
         if (returnType is ChannelType.INVALID):
             raise ChannelTypeInvalid(argument)
@@ -137,6 +143,8 @@ class BotSettings(Document):
     _adminChannel = IntField(default=-1) 
     _registerChannel = IntField(default=-1)
     _reportChannel = IntField(default=-1)
+    _blueTeamChannel = IntField(default=-1)
+    _orangeTeamChannel = IntField(default=-1)
     _registeredRole = IntField(default=-1)
     _adminRole = IntField(default=-1)
     _nextUniqueMatchID = IntField(default=0)
@@ -149,6 +157,8 @@ class BotSettings(Document):
     adminChannel = None # discord.TextChannel
     registerChannel = None # discord.TextChannel
     reportChannel = None # discord.TextChannel
+    blueTeamChannel = None # discord.TextChannel
+    orangeTeamChannel = None # discord.TextChannel
     registeredRole = None # discord.Role
     adminRole = None # discord.Role
 
@@ -190,6 +200,8 @@ class BotSettings(Document):
         self.adminChannel = self._GetChannel(self._adminChannel)
         self.registerChannel = self._GetChannel(self._registerChannel)
         self.reportChannel = self._GetChannel(self._reportChannel)
+        self.blueTeamChannel = self._GetChannel(self._blueTeamChannel)
+        self.orangeTeamChannel = self._GetChannel(self._orangeTeamChannel)
 
         # Player data
         # Type: Dictionary<key=discord.User, value=PlayerData>
@@ -332,6 +344,32 @@ class BotSettings(Document):
         elif (isinstance(channel, discord.TextChannel)):
             self.reportChannel = channel
             self._reportChannel = channel.id
+            self.save()
+        else:
+            raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')
+
+    # channel: Union[None, discord.TextChannel]
+    def SetBlueTeamChannel(self, channel):
+        if (channel is None):
+            self.blueTeamChannel = None
+            self._blueTeamChannel = -1
+            self.save()
+        elif (isinstance(channel, discord.TextChannel)):
+            self.blueTeamChannel = channel
+            self._blueTeamChannel = channel.id
+            self.save()
+        else:
+            raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')
+
+    # channel: Union[None, discord.TextChannel]
+    def SetOrangeTeamChannel(self, channel):
+        if (channel is None):
+            self.orangeTeamChannel = None
+            self._orangeTeamChannel = -1
+            self.save()
+        elif (isinstance(channel, discord.TextChannel)):
+            self.orangeTeamChannel = channel
+            self._orangeTeamChannel = channel.id
             self.save()
         else:
             raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')

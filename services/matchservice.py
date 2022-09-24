@@ -798,5 +798,21 @@ class MatchService(object):
         for match in self.matchesStarted.values():
             if match.IsPlayerInMatch(user):
                 return True
-
         return False
+
+    # Only supports the first match found. Won't work for other matches
+    def GetTeam1Players(self):
+        if len(self.matchesStarted) == 0:
+            return []
+
+        key = list(self.matchesStarted.keys())[0]
+        match = self.matchesStarted[key]
+        return [ player.user for player in match.team1 ]
+
+    def GetTeam2Players(self):
+        if len(self.matchesStarted) == 0:
+            return []
+
+        key = list(self.matchesStarted.keys())[0]
+        match = self.matchesStarted[key]
+        return [ player.user for player in match.team2 ]

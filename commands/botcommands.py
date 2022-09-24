@@ -648,7 +648,7 @@ class BotCommands(commands.Cog):
         """Shows the rules of conduct
         """
 
-        rules=['Respect your JPPeers', 'Gab should download the build', 'Dont join the lobby before 15h45 *\*cough\* Simon \*cough\**', 'Ban Clash and Oryx', 'Click Heads', 'Love Fort Boyard']
+        rules=['Respect your JPPeers', 'Gab should download the build', 'Dont join the lobby before 15h45 *\*cough\* Simon \*cough\**', 'Ban Clash and Oryx', 'Click Heads', 'Love Fort Boyard', 'Please leave the lobby.... pleassssseeeee']
 
         field = {}
         field['name'] = 'Rules of JPP' 
