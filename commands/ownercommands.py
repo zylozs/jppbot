@@ -2,9 +2,9 @@ from discord.ext import commands
 from data.botsettings import EmptyName, InvalidGuild, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip
 from data.activitydata import ActivityType, InvalidActivityType, NoActivities
 from data.quipdata import NoQuips, QuipType, InvalidQuipType, InvalidGuildEmoji
-from utils.chatutils import SendChannelMessage, SendMessage
+from utils.chatutils import SendChannelMessage 
 from utils.botutils import IsPrivateMessage, IsOwner 
-from utils.errorutils import HandleAppError, HandleError
+from utils.errorutils import HandleError
 from globals import *
 import inspect
 import discord
@@ -186,7 +186,7 @@ class OwnerCommands(commands.Cog):
         message = ''
         index = 0
         for quip in botSettings.quips:
-            type = await QuipType.convert(quip.type)
+            type = await QuipType.convert(ctx, quip.type)
             additionalInfo = ' '
 
             if (type == QuipType.SPECIFIC_USER):
@@ -232,7 +232,7 @@ class OwnerCommands(commands.Cog):
             raise InvalidQuipIndex(index)
 
         quip = botSettings.quips[index].quip
-        type = await QuipType.convert(botSettings.quips[index].type)
+        type = await QuipType.convert(ctx, botSettings.quips[index].type)
         user = botSettings.quips[index].user
         botSettings.RemoveQuip(index)
 

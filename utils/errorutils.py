@@ -1,13 +1,11 @@
-from pydoc import describe
-from tkinter import W
-from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, InvalidChannelType, InvalidRole, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, EmptyName, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip, InvalidStratIndex, UserNotActive
+from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, InvalidChannelType, InvalidRole, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, EmptyName, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip, InvalidStratIndex
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
 from data.siegemap import CantRerollMap, MapExists, InvalidMap 
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import InvalidMatchResult, MatchIDNotFound, MatchResultIdentical
 from data.activitydata import InvalidActivityType, NoActivities
 from data.quipdata import NoQuips, InvalidQuipType, InvalidGuildEmoji
-from data.mappool import CantForceMapPool, InvalidMapPool, MapPoolExists, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
+from data.mappool import CantForceMapPool, InvalidMapPool, MapPoolExists, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists, PoolIsEmpty
 from data.stratroulettedata import InvalidStratRouletteTeamType, InvalidStratRouletteTeam, NoStratRouletteStrats, EmptyStrat
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued, PlayerNotQueuedOrInGame, PlayersNotSwapable, PlayerSwapFailed
 from services.stratrouletteservice import StratRouletteMatchIsActive, CantStartStratRoulette, CantModifyStratRoulette
@@ -181,6 +179,9 @@ async def HandleCommandInvokeErrors(interaction:discord.Interaction, error:app_c
 
     elif (isinstance(error.original, StratRouletteMatchIsActive)):
         await SendErrorMessage(interaction, description='There is already an active strat roulette match. Please finish it first before starting a new one.')
+
+    elif (isinstance(error.original, PoolIsEmpty)):
+        await SendErrorMessage(interaction, description='There are no valid maps to select from in Map Pool {}'.format(error.original.argument))
 
     elif (isinstance(error.original, commands.errors.MissingRequiredArgument)):
         await SendErrorMessage(interaction, description='Invalid usage: `{0.name}` is a required argument'.format(error.original.param))

@@ -1,6 +1,5 @@
 from discord.ext import commands
 from utils.chatutils import SendChannelMessage
-from data.botsettings import InvalidCommandChannel, InvalidOwnerCommandChannel 
 from globals import *
 import discord
 import math

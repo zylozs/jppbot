@@ -1,10 +1,10 @@
 from __future__ import barry_as_FLUFL
-from data.botsettings import ChannelType, RegisteredRoleUnitialized, InvalidGuild, EmptyName
+from data.botsettings import ChannelType, RegisteredRoleUnitialized, InvalidGuild
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, MatchResult
 from data.quipdata import QuipType
 from data.mappool import MapPoolType
-from data.stratroulettedata import StratRouletteTeamType, NoStratRouletteStrats, EmptyStrat, InvalidStratRouletteTeamType
+from data.stratroulettedata import StratRouletteTeamType, NoStratRouletteStrats, InvalidStratRouletteTeamType
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued
 from utils.chatutils import SendMessage, SendMessages
 from utils.botutils import IsValidChannel, IsActivePlayer, GuildCommand

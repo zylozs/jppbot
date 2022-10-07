@@ -5,7 +5,6 @@ from datetime import datetime
 from data.matchhistorydata import MatchResult, MatchHistoryData, MatchHistoryPlayerData
 from enum import Enum
 import random
-import asyncio
 
 class PlayerAlreadyQueued(commands.BadArgument):
     def __init__(self, argument):
@@ -353,9 +352,6 @@ class MatchService(object):
         await SendMessage(interaction, description=description, color=discord.Color.blue())
 
     async def SwapPlayers(self, interaction:discord.Interaction, user1, user2):
-        # TODO: test this, make sure deleting the old match message doesn't cause issue
-        # Re-test the match starting functionality. I rewrote some of it 
-
         # Figure out who is in queue and who is in a match first
         queuedPlayer = None
         matchPlayer = None
@@ -475,7 +471,7 @@ class MatchService(object):
     def IsMatchInProgress(self):
         return len(self.matchesStarted) > 0
 
-    async def ForceMapPool(self, interaction:discord.Interaction, pool:str):
+    async def ForceMapPool(self, interaction:discord.Interaction, pool:str, useInteraction = True):
         key = list(self.matchesStarted.keys())[0]
         self.matchesStarted[key].pool = pool 
 
@@ -483,11 +479,20 @@ class MatchService(object):
 
         # If the current map isn't in the map pool, reroll the map
         if (not self.botSettings.IsValidMapPoolMap(pool, selectedMap)):
-            await SendMessage(interaction, description='The map pool for Game #{} has been changed to {}. The map {} is not in the pool, re-rolling map!'.format(key, pool, selectedMap), color=discord.Color.blue())
+            description = 'The map pool for Game #{} has been changed to {}. The map {} is not in the pool, re-rolling map!'.format(key, pool, selectedMap)
+
+            if (useInteraction):
+                await SendMessage(interaction, description=description, color=discord.Color.blue())
+            else:
+                await SendChannelMessage(interaction.channel, description=description, color=discord.Color.blue())
             await self.RerollMap(interaction, useInteraction=False)
             return
 
-        await SendMessage(interaction, description='The map pool for Game #{} has been changed to {}.'.format(key, pool), color=discord.Color.blue())
+        description = 'The map pool for Game #{} has been changed to {}.'.format(key, pool)
+        if (useInteraction):
+            await SendMessage(interaction, description=description, color=discord.Color.blue())
+        else:
+            await SendChannelMessage(interaction.channel, description=description, color=discord.Color.blue())
 
         # Delete the old message
         try:

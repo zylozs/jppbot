@@ -24,7 +24,7 @@ class QuipType(Enum):
     INVALID = 3
 
     @classmethod
-    async def convert(cls, argument):
+    async def convert(cls, ctx, argument):
         returnType = QuipType.INVALID
 
         if (isinstance(argument, int) or argument.isnumeric()):

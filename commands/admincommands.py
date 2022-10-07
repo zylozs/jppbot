@@ -1,12 +1,11 @@
-from pydoc import describe
 from discord.ext import commands
-from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch, InvalidChannelType , InvalidGuild, InvalidRole, RegisteredRoleUnitialized, EmptyName, InvalidStratIndex
+from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch, InvalidChannelType , InvalidGuild, InvalidRole, RegisteredRoleUnitialized, InvalidStratIndex
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, InvalidMatchResult, MatchIDNotFound, MatchResultIdentical, MatchResult
 from data.mmrrole import MMRRoleExists, MMRRoleRangeConflict, InvalidMMRRole, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap, CantRerollMap
-from data.mappool import CantForceMapPool, MapPoolExists, InvalidMapPool, MapPoolType, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
-from data.stratroulettedata import InvalidStratRouletteTeam, InvalidStratRouletteTeamType, StratRouletteData, StratRouletteTeam, StratRouletteTeamType, NoStratRouletteStrats
+from data.mappool import CantForceMapPool, MapPoolExists, InvalidMapPool, MapPoolType, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists, PoolIsEmpty
+from data.stratroulettedata import InvalidStratRouletteTeam, InvalidStratRouletteTeamType, StratRouletteTeam, StratRouletteTeamType, NoStratRouletteStrats
 from services.matchservice import TeamResult, PlayerNotQueuedOrInGame, PlayersNotSwapable
 from services.stratrouletteservice import CantStartStratRoulette, CantModifyStratRoulette
 from utils.botutils import IsAdmin, IsValidChannel, AddRoles, RemoveRoles, GuildCommand
@@ -1059,6 +1058,9 @@ class AdminCommands(commands.Cog):
         if (not botSettings.DoesMapPoolExist(pool_name)):
             raise InvalidMapPool(pool_name)
 
+        if (botSettings.IsPoolEmpty(pool_name)):
+            raise PoolIsEmpty(pool_name)
+
         botSettings.SetCurrentMapPool(pool_name)
         await SendMessage(interaction, description='`{}` has been set as the current map pool.'.format(pool_name), color=discord.Color.blue())
 
@@ -1078,6 +1080,9 @@ class AdminCommands(commands.Cog):
 
         if (not botSettings.DoesMapPoolExist(pool_name)):
             raise InvalidMapPool(pool_name)
+
+        if (botSettings.IsPoolEmpty(pool_name)):
+            raise PoolIsEmpty(pool_name)
 
         if (not matchService.IsMatchInProgress()):
             raise CantForceMapPool()
@@ -1172,14 +1177,17 @@ class AdminCommands(commands.Cog):
         if (force_pool != '' and not botSettings.DoesMapPoolExist(force_pool)):
             raise InvalidMapPool(force_pool)
 
+        if (force_pool != '' and botSettings.IsPoolEmpty(force_pool)):
+            raise PoolIsEmpty(force_pool)
+
         if (not matchService.IsMatchInProgress()):
             raise CantStartStratRoulette()
 
-        # TODO: Make sure the messaging isn't broken by doing this. We don't want ForceMapPool to be eating up the interaction
-        if (force_pool != ''):
-            await matchService.ForceMapPool(interaction, botSettings.GetMapPoolProperName(force_pool))
-
         await stratRouletteService.StartMatch(interaction, matchService.GetTeam1Players(), matchService.GetTeam2Players())
+
+        # Change the map pool second so we don't accidently invalidate the interaction
+        if (force_pool != ''):
+            await matchService.ForceMapPool(interaction, botSettings.GetMapPoolProperName(force_pool), useInteraction=False)
 
     @GuildCommand(name='setovertimerole')
     @IsValidChannel(ChannelType.LOBBY)

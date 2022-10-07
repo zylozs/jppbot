@@ -1,12 +1,11 @@
 from data.playerdata import PlayerData
 from data.mmrrole import MMRRole 
-from data.matchhistorydata import MatchHistoryData
 from data.mappool import MapPool, MapPoolType
 from services.matchservice import TeamResult, FakeUser
 from data.siegemap import SiegeMap
 from data.activitydata import ActivityData
 from data.quipdata import QuipData, QuipType
-from data.stratroulettedata import StratRouletteData
+from data.stratroulettedata import StratRouletteData, StratRouletteTeamType
 from enum import Enum
 from discord.ext import commands
 from mongoengine import Document, IntField, StringField
@@ -637,7 +636,28 @@ class BotSettings(Document):
             if (self.maps['villa'] not in leastPlayedMaps):
                 leastPlayedMaps.append(self.maps['villa'])
 
+        if (len(leastPlayedMaps) == 0):
+            return None
+
         return random.choice(leastPlayedMaps)
+
+    def IsPoolEmpty(self, selectedPool):
+        if (selectedPool is not None and self.DoesMapPoolExist(selectedPool)):
+            pool = self.pools[selectedPool.lower()]
+
+            maps = []
+
+            # Do nothing, we want all maps
+            if (pool.type == MapPoolType.ALL.value):
+                maps = self.maps.values()
+            else:
+                for _map in self.maps.values():
+                    if (pool.IsValidMap(_map.name)):
+                        maps.append(_map)
+
+            return len(maps) == 0
+
+        return True
 
     def DeclareMapPlayed(self, mapName:str, poolName):
         if (self.DoesMapExist(mapName)):
@@ -802,3 +822,16 @@ class BotSettings(Document):
         self.currentPool = self.GetMapPoolProperName(poolName)
         self._currentPool = self.currentPool
         self.save()
+
+    def GetRandomStrat(self, type:StratRouletteTeamType, previousStrat = None):
+        possibleStrats = []
+
+        for strat in self.strats:
+            if (type.value == strat.type or type == StratRouletteTeamType.BOTH):
+                if (previousStrat is None or previousStrat != strat):
+                    possibleStrats.append(strat)
+
+        if (len(possibleStrats) == 0):
+            return None
+
+        return random.choice(possibleStrats)
