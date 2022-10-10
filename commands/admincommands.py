@@ -1232,59 +1232,6 @@ class AdminCommands(commands.Cog):
         if (force_pool != ''):
             await matchService.ForceMapPool(interaction, botSettings.GetMapPoolProperName(force_pool), useInteraction=False)
 
-    @GuildCommand(name='setovertimerole')
-    @IsValidChannel(ChannelType.LOBBY)
-    @IsAdmin()
-    @app_commands.describe(team_type='The team you want to change the overtime role of.', role_type='The role you want the team to have in overtime.')
-    @app_commands.choices(team_type=[
-        Choice(name='Blue Team', value=StratRouletteTeam.BLUE.value),
-        Choice(name='Orange Team', value=StratRouletteTeam.ORANGE.value) ],
-
-        role_type=[
-        Choice(name='Attack', value=StratRouletteTeamType.ATTACKER.value),
-        Choice(name='Defense', value=StratRouletteTeamType.DEFENDER.value)
-        ])
-    async def OnSetStratRouletteOvertimeRole(self, interaction:discord.Interaction, team_type:Choice[int], role_type:Choice[int]):
-        """Overrides the current Strat Roulette Overtime Roles.
-
-           **string|int**: team_type
-           The team you want to change the overtime role of.
-           Available results (not case sensitive):
-           - 0 (Blue Team)
-           - 1 (Orange Team)
-           - blue (Blue Team)
-           - b (Blue Team)
-           - orange (Orange Team)
-           - o (Orange Team)
-
-           **string|int**: role_type
-           The role you want the team to have in overtime.
-           Available results (not case sensitive):
-           - 0 (Attack)
-           - 1 (Defense)
-           - attack (Attack)
-           - a (Attack)
-           - defense (Defense)
-           - d (Defense)
-        """
-
-        team = await StratRouletteTeam.convert(team_type.value)
-        role = await StratRouletteTeamType.convert(role_type.value)
-
-        print('Setting Strat Roulette overtime role for team {} to {}'.format(team.name, role.name))
-
-        if (team == StratRouletteTeam.INVALID):
-            raise InvalidStratRouletteTeam(team)
-
-        if (role == StratRouletteTeamType.INVALID or role == StratRouletteTeamType.BOTH):
-            raise InvalidStratRouletteTeamType(role)
-
-        if (not stratRouletteService.IsMatchInProgress()):
-            raise CantModifyStratRoulette()
-
-        await stratRouletteService.SetOvertimeRole(interaction, team, role)
-
-    @OnSetStratRouletteOvertimeRole.error
     @OnStartStratRouletteMatch.error
     @OnRecallMatch.error
     @OnRemoveStratRouletteStrat.error

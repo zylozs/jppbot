@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from data.stratroulettedata import StratRouletteTeam, StratRouletteTeamType
-from utils.chatutils import EditMessage, EditViewMessage, SendChannelMessage, SendMessage
+from utils.chatutils import EditMessage, EditViewMessage, SendChannelMessage, SendMessage, SendMessageEdit
 
 class StratRouletteMatchIsActive(commands.BadArgument):
     def __init__(self):
@@ -38,6 +38,44 @@ class StratRouletteTeamData(object):
         self.type = _type
         self.name = _name
 
+class StratRouletteOvertimeRoleDropdownView(discord.ui.View):
+    result = StratRouletteTeamType.INVALID
+    def __init__(self, team, service, allowRepeatRole):
+        # 1 min timeout
+        super().__init__(timeout=60.0)
+
+        self.team = team
+        self.service = service
+        self.allowRepeatRole = allowRepeatRole
+
+    @discord.ui.select(placeholder='Choose which overtime role your team is...', options=[
+        discord.SelectOption(label='Attack'),
+        discord.SelectOption(label='Defense'),
+        discord.SelectOption(label='Cancel')
+    ])
+    async def SelectRole(self, interaction:discord.Interaction, select:discord.ui.Select):
+        if (select.values[0] == 'Cancel'):
+            await EditViewMessage(interaction, description='Cancelling the overtime role change.', color=discord.Color.blue())
+            self.stop()
+            return
+
+        # Validate the role is different if we don't allow repeat roles
+        if (not self.allowRepeatRole):
+            if (select.values[0] == 'Attack' and self.team.type == StratRouletteTeamType.ATTACKER):
+                await EditViewMessage(interaction, view=self, description='Team {} is already Attacking.'.format(self.team.name), color=discord.Color.red())
+                return
+            elif (select.values[0] == 'Defense' and self.team.type == StratRouletteTeamType.DEFENDER):
+                await EditViewMessage(interaction, view=self, description='Team {} is already Defending.'.format(self.team.name), color=discord.Color.red())
+                return
+
+        await EditViewMessage(interaction, description="Setting Team {}'s overtime role to {}".format(self.team.name, select.values[0]), color=discord.Color.blue())
+        self.stop()
+
+        if (select.values[0] == 'Attack'):
+            self.result = StratRouletteTeamType.ATTACKER
+        else:
+            self.result = StratRouletteTeamType.DEFENDER
+
 class StratRouletteStratViewBase(discord.ui.View):
     def __init__(self, service, teamData:StratRouletteTeamData, roundNumber:int):
         # 1 hour timeout by default
@@ -61,12 +99,43 @@ class StratRouletteStratViewBase(discord.ui.View):
 
         return True
 
+    async def ReValidateRound(self, interaction:discord.Interaction, extraMessage:str):
+        if (self.service.activeMatch is None or self.roundNumber != self.service.activeMatch.roundNumber):
+            await SendMessageEdit(interaction, description='The round has already changed.{}'.format(extraMessage), color=discord.Color.red(), ephemeral=True)
+            return False
+
+        return True
+
     async def ValidateAdmin(self, interaction:discord.Interaction):
         if (not self.botSettings.IsUserAdmin(interaction.user)):
             await SendMessage(interaction, description='You must be an admin to perform this action!', color=discord.Color.red(), ephemeral=True)
             return False
 
         return True
+
+    async def OvertimeButtonBase(self, interaction:discord.Interaction):
+        if (not await self.ValidateAdmin(interaction)):
+            return
+        
+        if (not await self.ValidateRound(interaction, ' Try using the latest strat\'s button!')):
+            self.stop()
+            return
+
+        roleDropdown = StratRouletteOvertimeRoleDropdownView(self.team, self.service, allowRepeatRole=False)
+        await interaction.response.send_message(view=roleDropdown, ephemeral=True)
+
+        timeout = await roleDropdown.wait()
+        if (timeout):
+            await SendMessageEdit(interaction, description='The Overtime Role selection has timed out. Try again.', color=discord.Color.blue())
+
+        # Revalidate the round to make sure it didn't change while we waited on user input
+        if (not await self.ReValidateRound(interaction, ' Looks like someone beat you to it!')):
+            self.stop()
+            return
+
+        if (roleDropdown.result != StratRouletteTeamType.INVALID):
+            self.service.SetOvertimeRole(self.team, roleDropdown.result)
+            await self.service.UpdateOvertimeStrats()
 
     @discord.ui.button(label='Reroll (1)', style=discord.ButtonStyle.green)
     async def RerollStrat(self, interaction:discord.Interaction, button:discord.ui.Button):
@@ -126,42 +195,38 @@ class StratRouletteLastRoundView(StratRouletteStratViewBase):
             self.stop()
             return
 
-        button.disabled = True
+        roleDropdown = StratRouletteOvertimeRoleDropdownView(self.team, self.service, allowRepeatRole=True)
+        await interaction.response.send_message(view=roleDropdown, ephemeral=True)
 
-        # TODO: Add a drop down to select the overtime role
+        timeout = await roleDropdown.wait()
+        if (timeout):
+            await SendMessageEdit(interaction, description='The Overtime Role selection has timed out. Try again.', color=discord.Color.blue())
+            return
 
-        await interaction.response.edit_message(view=self)
-        await self.service.StartNextRound()
+        # Revalidate the round to make sure it didn't change while we waited on user input
+        if (not await self.ReValidateRound(interaction, ' Looks like someone beat you to it!')):
+            self.stop()
+            return
 
-        self.stop()
+        if (roleDropdown.result != StratRouletteTeamType.INVALID):
+            self.service.SetOvertimeRole(self.team, roleDropdown.result)
+            await self.service.StartNextRound()
+            self.stop()
 
 class StratRouletteOvertimeRoundView(StratRouletteNormalRoundView):
     @discord.ui.button(label='Fix Overtime 🛠️', style=discord.ButtonStyle.grey)
     async def FixOvertimeRole(self, interaction:discord.Interaction, button:discord.ui.Button):
-        if (not await self.ValidateAdmin(interaction)):
-            return
-        
-        if (not await self.ValidateRound(interaction, ' Try using the latest strat\'s button!')):
-            self.stop()
-            return
-
-        # TODO: implement this
+        await self.OvertimeButtonBase(interaction)
 
 class StratRouletteLastOvertimeRoundView(StratRouletteStratViewBase):
     @discord.ui.button(label='Fix Overtime 🛠️', style=discord.ButtonStyle.grey)
     async def FixOvertimeRole(self, interaction:discord.Interaction, button:discord.ui.Button):
-        if (not await self.ValidateAdmin(interaction)):
-            return
-        
-        if (not await self.ValidateRound(interaction, ' Try using the latest strat\'s button!')):
-            self.stop()
-            return
-
-        # TODO: implement this
+        await self.OvertimeButtonBase(interaction)
 
 class StratRouletteMatch(object):
     team1 = None
     team2 = None
+    overtimeRoleTeam1 = StratRouletteTeamType.INVALID
 
     roundNumber = 0
 
@@ -175,8 +240,13 @@ class StratRouletteMatch(object):
         self.team2.type = tempType
 
     def BeginOvertime(self):
-        # TODO: Figure out who gets what role on overtime...
-        pass
+        invertedRole = StratRouletteTeamType.ATTACKER if self.overtimeRoleTeam1 == StratRouletteTeamType.DEFENDER else StratRouletteTeamType.DEFENDER
+
+        self.team1.type = self.overtimeRoleTeam1
+        self.team2.type = invertedRole
+
+    def FixOvertimeRoles(self):
+        self.BeginOvertime()
 
 def GetFieldFromTeam(roundNumber:int, team:StratRouletteTeamData):
     typeName = 'Attack' if team.type == StratRouletteTeamType.ATTACKER else 'Defense'
@@ -329,11 +399,27 @@ class StratRouletteService(object):
         await self.SendStrat(self.activeMatch.team1, sendNewMessage = False)
         await self.SendStrat(self.activeMatch.team2, sendNewMessage = False)
 
-    async def SetOvertimeRole(self, interaction:discord.Interaction, team:StratRouletteTeam, role:StratRouletteTeamType):
-        teamName = 'Blue Team' if team == StratRouletteTeam.BLUE else 'Orange Team'
-        roleName = 'Attack' if role == StratRouletteTeamType.ATTACKER else 'Defense'
+    def SetOvertimeRole(self, team:StratRouletteTeam, role:StratRouletteTeamType):
+        if (self.activeMatch.team1 == team):
+            self.activeMatch.overtimeRoleTeam1 = role
+        else:
+            invertedRole = StratRouletteTeamType.ATTACKER if role == StratRouletteTeamType.DEFENDER else StratRouletteTeamType.DEFENDER
+            self.activeMatch.overtimeRoleTeam1 = invertedRole
 
-        await SendMessage(interaction, description='Changing Overtime role for {} to {}'.format(teamName, roleName), color=discord.Color.blue())
+        # If overtime has already started, update the teams directly
+        if (self.activeMatch.roundNumber >= 7):
+            self.activeMatch.FixOvertimeRoles()
+
+    async def UpdateOvertimeStrats(self):
+        # Reroll the invalid strats for the updated roles
+        if (self.activeMatch.team1.strat.type != StratRouletteTeamType.BOTH):
+            self.activeMatch.team1.strat = self.botSettings.GetRandomStrat(self.activeMatch.team1.type)
+
+        if (self.activeMatch.team2.strat.type != StratRouletteTeamType.BOTH):
+            self.activeMatch.team2.strat = self.botSettings.GetRandomStrat(self.activeMatch.team2.type)
+
+        await self.SendStrat(self.activeMatch.team1, sendNewMessage = False)
+        await self.SendStrat(self.activeMatch.team2, sendNewMessage = False)
 
     def IsMatchInProgress(self):
         return self.activeMatch is not None

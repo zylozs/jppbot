@@ -45,8 +45,8 @@ async def EditViewMessage(interaction:discord.Interaction, view=None, **kwargs):
 async def EditMessage(message:discord.Message, view=None, **kwargs):
     await message.edit(embed=CreateEmbed(**kwargs), view=view)
 
-async def SendMessageEdit(interaction:discord.Interaction, **kwargs):
-    await interaction.edit_original_response(embed=CreateEmbed(**kwargs))
+async def SendMessageEdit(interaction:discord.Interaction, view=None, **kwargs):
+    await interaction.edit_original_response(embed=CreateEmbed(**kwargs), view=view)
 
 async def SendMessages(interaction:discord.Interaction, messages, **kwargs):
     if (len(messages) >= 1):
