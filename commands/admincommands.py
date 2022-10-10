@@ -18,6 +18,7 @@ from discord.app_commands import Choice
 import discord
 import math
 import random
+import asyncio
 
 class AdminCommands(commands.Cog):
     def __init__(self, bot):
@@ -92,7 +93,14 @@ class AdminCommands(commands.Cog):
         """Clears the matchmaking queue"""
         print('Clearing queue')
 
-        await matchService.ClearQueue(interaction)
+        matchService.ClearQueue()
+
+        extraMessage = ''
+        if (stratRouletteService.IsMatchQueued() and not stratRouletteService.IsMatchInProgress()):
+            stratRouletteService.ClearQueuedMatch()
+            extraMessage = '\nStrat Roulette Match Cancelled.'
+
+        await SendMessage(interaction, description='Queue Cleared.{}'.format(extraMessage), color=discord.Color.blue())
 
     @GuildCommand(name='kick')
     @IsValidChannel(ChannelType.LOBBY)
@@ -128,7 +136,31 @@ class AdminCommands(commands.Cog):
         print('{} is force starting the match {}'.format(interaction.user, 'and filling with fake users' if fill_with_fake_players else ''))
 
         await SendMessage(interaction, description='{0.mention} is force starting the match!'.format(interaction.user), color=discord.Color.blue())
-        await matchService.StartMatch(fill_with_fake_players)
+
+        id = matchService.PrepareMatch(fill_with_fake_players, stratRouletteService.forcedPool)
+
+        # Early out for the simple case where we only have to start a match
+        if (not stratRouletteService.IsMatchQueued()):
+            await matchService.StartMatch(id)
+
+            # If a strat roulette match was started afterwards, we should make sure to stop it
+            if (stratRouletteService.IsMatchInProgress()):
+                await stratRouletteService.StopMatch()
+            return
+
+        # If we need to start a match and a strat roulette match, do some task scheduling
+        matchServiceTask = asyncio.create_task(
+            matchService.StartMatch(id)
+        )
+
+        stratRouletteServiceTask = asyncio.create_task(
+            stratRouletteService.TryStartQueuedMatch(matchService.GetTeam1Players(id), matchService.GetTeam2Players(id))
+        )
+
+        await matchServiceTask
+        await stratRouletteService.StopMatch()
+        await stratRouletteServiceTask 
+
 
     @GuildCommand(name='clearchannel')
     @IsValidChannel(ChannelType.ADMIN)
@@ -1134,6 +1166,9 @@ class AdminCommands(commands.Cog):
 
         # Now try to swap
         await matchService.SwapPlayers(interaction, player1, player2)
+
+        if (stratRouletteService.IsMatchInProgress()):
+            await stratRouletteService.UpdateTeams(matchService.GetTeam1Players(), matchService.GetTeam2Players())
  
     @GuildCommand(name='removestrat')
     @IsValidChannel(ChannelType.ADMIN)
@@ -1181,9 +1216,17 @@ class AdminCommands(commands.Cog):
             raise PoolIsEmpty(force_pool)
 
         if (not matchService.IsMatchInProgress()):
-            raise CantStartStratRoulette()
+            if (not matchService.IsQueueEmpty()):
+                poolProperName = '' if force_pool == '' else botSettings.GetMapPoolProperName(force_pool)
+                await stratRouletteService.QueueStartMatch(poolProperName)
+                await SendMessage(interaction, description='_loads revolver_ Let the fun begin!', color=discord.Color.blue())
+                return
+            else:
+                raise CantStartStratRoulette()
 
-        await stratRouletteService.StartMatch(interaction, matchService.GetTeam1Players(), matchService.GetTeam2Players())
+        await stratRouletteService.StartMatch(matchService.GetTeam1Players(), matchService.GetTeam2Players())
+
+        await SendMessage(interaction, description='_loads revolver_ Let the fun begin!', color=discord.Color.blue())
 
         # Change the map pool second so we don't accidently invalidate the interaction
         if (force_pool != ''):

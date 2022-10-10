@@ -42,6 +42,9 @@ async def SendMessage(interaction:discord.Interaction, ephemeral=False, **kwargs
 async def EditViewMessage(interaction:discord.Interaction, view=None, **kwargs):
     await interaction.response.edit_message(embed=CreateEmbed(**kwargs), view=view)
 
+async def EditMessage(message:discord.Message, view=None, **kwargs):
+    await message.edit(embed=CreateEmbed(**kwargs), view=view)
+
 async def SendMessageEdit(interaction:discord.Interaction, **kwargs):
     await interaction.edit_original_response(embed=CreateEmbed(**kwargs))
 

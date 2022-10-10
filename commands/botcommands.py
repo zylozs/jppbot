@@ -16,6 +16,7 @@ from discord import app_commands
 from discord.app_commands import Choice
 import discord
 import random
+import asyncio
 
 class BotCommands(commands.Cog):
     def __init__(self, bot):
@@ -166,6 +167,34 @@ class BotCommands(commands.Cog):
 
         await matchService.JoinQueue(interaction, interaction.user)
 
+        # Early exit if we don't need to start a match
+        if (not matchService.IsQueueFull()):
+            return
+
+        id = matchService.PrepareMatch(False, stratRouletteService.forcedPool)
+
+        # Early out for the simple case where we only have to start a match
+        if (not stratRouletteService.IsMatchQueued()):
+            await matchService.StartMatch(id)
+
+            # If a strat roulette match was started afterwards, we should make sure to stop it
+            if (stratRouletteService.IsMatchInProgress()):
+                await stratRouletteService.StopMatch()
+            return
+
+        # If we need to start a match and a strat roulette match, do some task scheduling
+        matchServiceTask = asyncio.create_task(
+            matchService.StartMatch(id)
+        )
+
+        stratRouletteServiceTask = asyncio.create_task(
+            stratRouletteService.TryStartQueuedMatch(matchService.GetTeam1Players(id), matchService.GetTeam2Players(id))
+        )
+
+        await matchServiceTask
+        await stratRouletteService.StopMatch()
+        await stratRouletteServiceTask 
+
     @GuildCommand(name='leave')
     @IsValidChannel(ChannelType.LOBBY)
     async def OnLeaveQueue(self, interaction:discord.Interaction):
@@ -178,7 +207,14 @@ class BotCommands(commands.Cog):
         if (not matchService.IsPlayerQueued(interaction.user)):
             raise PlayerNotQueued(interaction.user)
 
-        await matchService.LeaveQueue(interaction, interaction.user)
+        extraClearMessage = ''
+        if (stratRouletteService.IsMatchQueued() and not stratRouletteService.IsMatchInProgress()):
+            extraClearMessage = '\nStrat Roulette Match Cancelled.'
+
+        await matchService.LeaveQueue(interaction, interaction.user, extraClearMessage)
+
+        if (matchService.IsQueueEmpty() and extraClearMessage != ''):
+            stratRouletteService.ClearQueuedMatch()
 
     @GuildCommand(name='queue')
     @IsValidChannel(ChannelType.LOBBY)

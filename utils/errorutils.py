@@ -8,7 +8,7 @@ from data.quipdata import NoQuips, InvalidQuipType, InvalidGuildEmoji
 from data.mappool import CantForceMapPool, InvalidMapPool, MapPoolExists, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists, PoolIsEmpty
 from data.stratroulettedata import InvalidStratRouletteTeamType, InvalidStratRouletteTeam, NoStratRouletteStrats, EmptyStrat
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued, PlayerNotQueuedOrInGame, PlayersNotSwapable, PlayerSwapFailed
-from services.stratrouletteservice import StratRouletteMatchIsActive, CantStartStratRoulette, CantModifyStratRoulette
+from services.stratrouletteservice import CantStopStratRoulette, StratRouletteMatchAlreadyQueued, StratRouletteMatchIsActive, CantStartStratRoulette, CantModifyStratRoulette
 from utils.chatutils import SendMessage, SendChannelMessage
 
 from discord.ext import commands
@@ -100,10 +100,16 @@ async def HandleCommandInvokeErrors(interaction:discord.Interaction, error:app_c
         await SendErrorMessage(interaction, description='You can\'t force a map pool when a match isn\'t running.')
 
     elif (isinstance(error.original, CantStartStratRoulette)):
-        await SendErrorMessage(interaction, description='You can\'t start a Strat Roulette when a match isn\'t running.')
+        await SendErrorMessage(interaction, description='You can\'t start a Strat Roulette when a match isn\'t running or players aren\'t queued for a match.')
+
+    elif (isinstance(error.original, CantStopStratRoulette)):
+        await SendErrorMessage(interaction, description='You can\'t stop a Strat Roulette when one isn\'t running.')
 
     elif (isinstance(error.original, CantModifyStratRoulette)):
         await SendErrorMessage(interaction, description='You can\'t modify the Strat Roulette settings when a session isn\'t running. Try starting a Strat Roulette session first!')
+
+    elif (isinstance(error.original, StratRouletteMatchAlreadyQueued)):
+        await SendErrorMessage(interaction, description='There is already a strat roulette match queued.')
 
     elif (isinstance(error.original, CantRerollMap)):
         await SendErrorMessage(interaction, description='You can\'t reroll a map when a match isn\'t running.')
