@@ -1,15 +1,14 @@
-from pydoc import describe
-from tkinter import W
-from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, InvalidChannelType, InvalidRole, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, EmptyName, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip, InvalidStratIndex, UserNotActive
+from data.botsettings import ChannelTypeInvalid, GuildTextChannelMismatch, GuildRoleMismatch, InvalidChannelType, InvalidRole, RegisteredRoleUnitialized, AdminRoleUnitialized, InvalidGuild, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, EmptyName, InvalidActivityIndex, InvalidQuipIndex, EmptyQuip, InvalidStratIndex
 from data.mmrrole import InvalidMMRRole, MMRRoleExists, MMRRoleRangeConflict, NoMMRRoles
 from data.siegemap import CantRerollMap, MapExists, InvalidMap 
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import InvalidMatchResult, MatchIDNotFound, MatchResultIdentical
 from data.activitydata import InvalidActivityType, NoActivities
 from data.quipdata import NoQuips, InvalidQuipType, InvalidGuildEmoji
-from data.mappool import CantForceMapPool, InvalidMapPool, MapPoolExists, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
-from data.stratroulettedata import InvalidStratRouletteTeamType, NoStratRouletteStrats, EmptyStrat
+from data.mappool import CantForceMapPool, InvalidMapPool, MapPoolExists, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists, PoolIsEmpty
+from data.stratroulettedata import InvalidStratRouletteTeamType, InvalidStratRouletteTeam, NoStratRouletteStrats, EmptyStrat
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued, PlayerNotQueuedOrInGame, PlayersNotSwapable, PlayerSwapFailed
+from services.stratrouletteservice import CantStopStratRoulette, StratRouletteMatchAlreadyQueued, StratRouletteMatchIsActive, CantStartStratRoulette, CantModifyStratRoulette
 from utils.chatutils import SendMessage, SendChannelMessage
 
 from discord.ext import commands
@@ -100,6 +99,18 @@ async def HandleCommandInvokeErrors(interaction:discord.Interaction, error:app_c
     elif (isinstance(error.original, CantForceMapPool)):
         await SendErrorMessage(interaction, description='You can\'t force a map pool when a match isn\'t running.')
 
+    elif (isinstance(error.original, CantStartStratRoulette)):
+        await SendErrorMessage(interaction, description='You can\'t start a Strat Roulette when a match isn\'t running or players aren\'t queued for a match.')
+
+    elif (isinstance(error.original, CantStopStratRoulette)):
+        await SendErrorMessage(interaction, description='You can\'t stop a Strat Roulette when one isn\'t running.')
+
+    elif (isinstance(error.original, CantModifyStratRoulette)):
+        await SendErrorMessage(interaction, description='You can\'t modify the Strat Roulette settings when a session isn\'t running. Try starting a Strat Roulette session first!')
+
+    elif (isinstance(error.original, StratRouletteMatchAlreadyQueued)):
+        await SendErrorMessage(interaction, description='There is already a strat roulette match queued.')
+
     elif (isinstance(error.original, CantRerollMap)):
         await SendErrorMessage(interaction, description='You can\'t reroll a map when a match isn\'t running.')
 
@@ -117,6 +128,9 @@ async def HandleCommandInvokeErrors(interaction:discord.Interaction, error:app_c
 
     elif (isinstance(error.original, InvalidQuipType)):
         await SendErrorMessage(interaction, description='`{}` is not a valid Quip Type.'.format(error.original.argument))
+
+    elif (isinstance(error.original, InvalidStratRouletteTeam)):
+        await SendErrorMessage(interaction, description='`{}` is not a valid Strat Roulette Team.'.format(error.original.argument))
 
     elif (isinstance(error.original, InvalidStratRouletteTeamType)):
         await SendErrorMessage(interaction, description='`{}` is not a valid Strat Roulette Team Type.'.format(error.original.argument))
@@ -168,6 +182,12 @@ async def HandleCommandInvokeErrors(interaction:discord.Interaction, error:app_c
 
     elif (isinstance(error.original, EmptyStrat)):
         await SendErrorMessage(interaction, description='An empty string is not a valid Strat Roulette strat.')
+
+    elif (isinstance(error.original, StratRouletteMatchIsActive)):
+        await SendErrorMessage(interaction, description='There is already an active strat roulette match. Please finish it first before starting a new one.')
+
+    elif (isinstance(error.original, PoolIsEmpty)):
+        await SendErrorMessage(interaction, description='There are no valid maps to select from in Map Pool {}'.format(error.original.argument))
 
     elif (isinstance(error.original, commands.errors.MissingRequiredArgument)):
         await SendErrorMessage(interaction, description='Invalid usage: `{0.name}` is a required argument'.format(error.original.param))

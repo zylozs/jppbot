@@ -1,12 +1,12 @@
+from data.matchhistorydata import MatchResult
 from data.playerdata import PlayerData
 from data.mmrrole import MMRRole 
-from data.matchhistorydata import MatchHistoryData
 from data.mappool import MapPool, MapPoolType
 from services.matchservice import TeamResult, FakeUser
 from data.siegemap import SiegeMap
 from data.activitydata import ActivityData
 from data.quipdata import QuipData, QuipType
-from data.stratroulettedata import StratRouletteData
+from data.stratroulettedata import StratRouletteData, StratRouletteGlobalMatchData, StratRouletteTeamType
 from enum import Enum
 from discord.ext import commands
 from mongoengine import Document, IntField, StringField
@@ -105,6 +105,8 @@ class ChannelType(Enum):
     ADMIN = "admin"
     REGISTER = "register"
     REPORT = "report"
+    BLUE_TEAM = "blue"
+    ORANGE_TEAM = "orange"
     INVALID = "invalid"
 
     @classmethod
@@ -122,6 +124,10 @@ class ChannelType(Enum):
             returnType = ChannelType.REGISTER
         elif (tempArg.__contains__(ChannelType.REPORT.value)):
             returnType = ChannelType.REPORT
+        elif (tempArg.__contains__(ChannelType.BLUE_TEAM.value)):
+            returnType = ChannelType.BLUE_TEAM
+        elif (tempArg.__contains__(ChannelType.ORANGE_TEAM.value)):
+            returnType = ChannelType.ORANGE_TEAM
 
         if (returnType is ChannelType.INVALID):
             raise ChannelTypeInvalid(argument)
@@ -137,6 +143,8 @@ class BotSettings(Document):
     _adminChannel = IntField(default=-1) 
     _registerChannel = IntField(default=-1)
     _reportChannel = IntField(default=-1)
+    _blueTeamChannel = IntField(default=-1)
+    _orangeTeamChannel = IntField(default=-1)
     _registeredRole = IntField(default=-1)
     _adminRole = IntField(default=-1)
     _nextUniqueMatchID = IntField(default=0)
@@ -149,6 +157,8 @@ class BotSettings(Document):
     adminChannel = None # discord.TextChannel
     registerChannel = None # discord.TextChannel
     reportChannel = None # discord.TextChannel
+    blueTeamChannel = None # discord.TextChannel
+    orangeTeamChannel = None # discord.TextChannel
     registeredRole = None # discord.Role
     adminRole = None # discord.Role
 
@@ -160,6 +170,7 @@ class BotSettings(Document):
     activities = []
     quips = []
     strats = []
+    globalStratData = None
 
     def _GetGuild(self, id, bot):
         if (len(bot.guilds) == 0):
@@ -190,6 +201,8 @@ class BotSettings(Document):
         self.adminChannel = self._GetChannel(self._adminChannel)
         self.registerChannel = self._GetChannel(self._registerChannel)
         self.reportChannel = self._GetChannel(self._reportChannel)
+        self.blueTeamChannel = self._GetChannel(self._blueTeamChannel)
+        self.orangeTeamChannel = self._GetChannel(self._orangeTeamChannel)
 
         # Player data
         # Type: Dictionary<key=discord.User, value=PlayerData>
@@ -255,6 +268,13 @@ class BotSettings(Document):
             self.strats.append(strat)
 
         self.strats.sort(key=lambda strat : strat.type)
+
+        # Strat Roulette Global Match Data
+        # Load or create one. There should only ever be one!
+        if (len(StratRouletteGlobalMatchData.objects) > 0):
+            self.globalStratData = StratRouletteGlobalMatchData.objects.first()
+        else:
+            self.globalStratData = StratRouletteGlobalMatchData()
 
         print('Settings Loaded')
 
@@ -332,6 +352,32 @@ class BotSettings(Document):
         elif (isinstance(channel, discord.TextChannel)):
             self.reportChannel = channel
             self._reportChannel = channel.id
+            self.save()
+        else:
+            raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')
+
+    # channel: Union[None, discord.TextChannel]
+    def SetBlueTeamChannel(self, channel):
+        if (channel is None):
+            self.blueTeamChannel = None
+            self._blueTeamChannel = -1
+            self.save()
+        elif (isinstance(channel, discord.TextChannel)):
+            self.blueTeamChannel = channel
+            self._blueTeamChannel = channel.id
+            self.save()
+        else:
+            raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')
+
+    # channel: Union[None, discord.TextChannel]
+    def SetOrangeTeamChannel(self, channel):
+        if (channel is None):
+            self.orangeTeamChannel = None
+            self._orangeTeamChannel = -1
+            self.save()
+        elif (isinstance(channel, discord.TextChannel)):
+            self.orangeTeamChannel = channel
+            self._orangeTeamChannel = channel.id
             self.save()
         else:
             raise commands.BadArgument('Argument [channel] is not None or a valid Discord TextChannel')
@@ -599,7 +645,28 @@ class BotSettings(Document):
             if (self.maps['villa'] not in leastPlayedMaps):
                 leastPlayedMaps.append(self.maps['villa'])
 
+        if (len(leastPlayedMaps) == 0):
+            return None
+
         return random.choice(leastPlayedMaps)
+
+    def IsPoolEmpty(self, selectedPool):
+        if (selectedPool is not None and self.DoesMapPoolExist(selectedPool)):
+            pool = self.pools[selectedPool.lower()]
+
+            maps = []
+
+            # Do nothing, we want all maps
+            if (pool.type == MapPoolType.ALL.value):
+                maps = self.maps.values()
+            else:
+                for _map in self.maps.values():
+                    if (pool.IsValidMap(_map.name)):
+                        maps.append(_map)
+
+            return len(maps) == 0
+
+        return True
 
     def DeclareMapPlayed(self, mapName:str, poolName):
         if (self.DoesMapExist(mapName)):
@@ -607,6 +674,23 @@ class BotSettings(Document):
 
         if (poolName is not None and self.DoesMapPoolExist(poolName)):
             self.pools[poolName.lower()].IncrementTimesPlayed()
+
+    def DeclareStratRouletteComplete(self, matchResult:MatchResult, totalRerolls:int, team1Members:list[discord.Member], team2Members:list[discord.Member], rerollPlayers:list[int], overtimeCaller, overtimeFixer):
+        shouldIncrementGame = matchResult == MatchResult.TEAM1VICTORY or matchResult == MatchResult.TEAM2VICTORY
+        self.globalStratData.Increment(shouldIncrementGame, totalRerolls, overtimeCaller, overtimeFixer)
+
+        for member in team1Members:
+            self.DeclarePlayerStratRouletteComplete(member, shouldIncrementGame, rerollPlayers, overtimeCaller, overtimeFixer)
+
+        for member in team2Members:
+            self.DeclarePlayerStratRouletteComplete(member, shouldIncrementGame, rerollPlayers, overtimeCaller, overtimeFixer)
+
+    def DeclarePlayerStratRouletteComplete(self, member:discord.Member, shouldIncrementGame:bool, rerollPlayers:list[int], overtimeCaller, overtimeFixer):
+        if member is not None and self.IsUserRegisteredByID(member.id):
+            rerolls = rerollPlayers.count(member.id) 
+            calledOvertime = overtimeCaller == member
+            madeOvertimeMistake = overtimeFixer is not None
+            self.registeredPlayers[member.id].IncrementStratRoulette(shouldIncrementGame, rerolls, calledOvertime, madeOvertimeMistake)
 
     # Union[discord.User, FakeUser] user
     def DeclareWinner(self, user, mmrDelta=None):
@@ -764,3 +848,16 @@ class BotSettings(Document):
         self.currentPool = self.GetMapPoolProperName(poolName)
         self._currentPool = self.currentPool
         self.save()
+
+    def GetRandomStrat(self, type:StratRouletteTeamType, previousStrat = None):
+        possibleStrats = []
+
+        for strat in self.strats:
+            if (type.value == strat.type or type == StratRouletteTeamType.BOTH):
+                if (previousStrat is None or previousStrat != strat):
+                    possibleStrats.append(strat)
+
+        if (len(possibleStrats) == 0):
+            return None
+
+        return random.choice(possibleStrats)

@@ -1,13 +1,13 @@
-from pydoc import describe
 from discord.ext import commands
-from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch, InvalidChannelType , InvalidGuild, InvalidRole, RegisteredRoleUnitialized, EmptyName, InvalidStratIndex
+from data.botsettings import ChannelType, GuildTextChannelMismatch, GuildRoleMismatch, InvalidChannelType , InvalidGuild, InvalidRole, RegisteredRoleUnitialized, InvalidStratIndex
 from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, InvalidMatchResult, MatchIDNotFound, MatchResultIdentical, MatchResult
 from data.mmrrole import MMRRoleExists, MMRRoleRangeConflict, InvalidMMRRole, NoMMRRoles
 from data.siegemap import MapExists, InvalidMap, CantRerollMap
-from data.mappool import CantForceMapPool, MapPoolExists, InvalidMapPool, MapPoolType, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists
-from data.stratroulettedata import StratRouletteData, StratRouletteTeamType, NoStratRouletteStrats
+from data.mappool import CantForceMapPool, MapPoolExists, InvalidMapPool, MapPoolType, InvalidMapPoolType, InvalidMapPoolMap, MapPoolMapExists, PoolIsEmpty
+from data.stratroulettedata import InvalidStratRouletteTeam, InvalidStratRouletteTeamType, StratRouletteTeam, StratRouletteTeamType, NoStratRouletteStrats
 from services.matchservice import TeamResult, PlayerNotQueuedOrInGame, PlayersNotSwapable
+from services.stratrouletteservice import CantStartStratRoulette, CantModifyStratRoulette
 from utils.botutils import IsAdmin, IsValidChannel, AddRoles, RemoveRoles, GuildCommand
 from utils.errorutils import HandleAppError, HandleError
 from utils.chatutils import SendMessage, SendChannelMessage, SendMessageEdit
@@ -18,6 +18,7 @@ from discord.app_commands import Choice
 import discord
 import math
 import random
+import asyncio
 
 class AdminCommands(commands.Cog):
     def __init__(self, bot):
@@ -92,7 +93,14 @@ class AdminCommands(commands.Cog):
         """Clears the matchmaking queue"""
         print('Clearing queue')
 
-        await matchService.ClearQueue(interaction)
+        matchService.ClearQueue()
+
+        extraMessage = ''
+        if (stratRouletteService.IsMatchQueued() and not stratRouletteService.IsMatchInProgress()):
+            stratRouletteService.ClearQueuedMatch()
+            extraMessage = '\nStrat Roulette Match Cancelled.'
+
+        await SendMessage(interaction, description='Queue Cleared.{}'.format(extraMessage), color=discord.Color.blue())
 
     @GuildCommand(name='kick')
     @IsValidChannel(ChannelType.LOBBY)
@@ -128,7 +136,37 @@ class AdminCommands(commands.Cog):
         print('{} is force starting the match {}'.format(interaction.user, 'and filling with fake users' if fill_with_fake_players else ''))
 
         await SendMessage(interaction, description='{0.mention} is force starting the match!'.format(interaction.user), color=discord.Color.blue())
-        await matchService.StartMatch(fill_with_fake_players)
+
+        id = matchService.PrepareMatch(fill_with_fake_players, stratRouletteService.forcedPool)
+
+        # Early out for the simple case where we only have to start a match
+        if (not stratRouletteService.IsMatchQueued()):
+            result = await matchService.StartMatch(id)
+
+            # If a strat roulette match was started afterwards, we should make sure to stop it
+            if (stratRouletteService.IsMatchInProgress()):
+                await stratRouletteService.StopMatch(id, result)
+            return
+
+        # If we need to start a match and a strat roulette match, do some task scheduling
+        matchServiceTask = asyncio.create_task(
+            matchService.StartMatch(id)
+        )
+
+        stratRouletteServiceTask = asyncio.create_task(
+            stratRouletteService.TryStartQueuedMatch(matchService.GetTeam1Players(id), matchService.GetTeam2Players(id))
+        )
+
+        await matchServiceTask
+        lastMatchResult = matchService.GetLastMatchResult()
+        matchResult = MatchResult.INVALID
+
+        if (lastMatchResult is not None and lastMatchResult[0] == id):
+            matchResult = lastMatchResult[1]
+
+        await stratRouletteService.StopMatch(id, matchResult)
+        await stratRouletteServiceTask 
+
 
     @GuildCommand(name='clearchannel')
     @IsValidChannel(ChannelType.ADMIN)
@@ -139,7 +177,9 @@ class AdminCommands(commands.Cog):
         Choice(name='Lobby', value=ChannelType.LOBBY.value),
         Choice(name='Register', value=ChannelType.REGISTER.value),
         Choice(name='Report', value=ChannelType.REPORT.value),
-        Choice(name='Results', value=ChannelType.RESULTS.value) ])
+        Choice(name='Results', value=ChannelType.RESULTS.value),
+        Choice(name='Blue Team', value=ChannelType.BLUE_TEAM.value),
+        Choice(name='Orange Team', value=ChannelType.ORANGE_TEAM.value) ])
     async def OnClearChannel(self, interaction:discord.Interaction, channel_type:Choice[str]):
         """Clears a channel from use with the bot
 
@@ -150,6 +190,8 @@ class AdminCommands(commands.Cog):
            - results
            - report
            - admin
+           - blue
+           - orange
         """
         print('Channel type: {}'.format(channel_type.value))
 
@@ -173,6 +215,12 @@ class AdminCommands(commands.Cog):
         elif (type is ChannelType.REPORT):
             channel = botSettings.reportChannel
             botSettings.SetReportChannel(None)
+        elif (type is ChannelType.BLUE_TEAM):
+            channel = botSettings.blueTeamChannel
+            botSettings.SetBlueTeamChannel(None)
+        elif (type is ChannelType.ORANGE_TEAM):
+            channel = botSettings.orangeTeamChannel
+            botSettings.SetOrangeTeamChannel(None)
 
         await SendMessage(interaction, description='{0.mention} has been cleared as the {1.value} channel'.format(channel, type), color=discord.Color.blue())
 
@@ -185,7 +233,9 @@ class AdminCommands(commands.Cog):
         Choice(name='Lobby', value=ChannelType.LOBBY.value),
         Choice(name='Register', value=ChannelType.REGISTER.value),
         Choice(name='Report', value=ChannelType.REPORT.value),
-        Choice(name='Results', value=ChannelType.RESULTS.value) ])
+        Choice(name='Results', value=ChannelType.RESULTS.value),
+        Choice(name='Blue Team', value=ChannelType.BLUE_TEAM.value),
+        Choice(name='Orange Team', value=ChannelType.ORANGE_TEAM.value) ])
     async def OnSetChannel(self, interaction:discord.Interaction, channel:discord.TextChannel, channel_type:Choice[str]):
         """Sets a channel for use with the bot
 
@@ -203,6 +253,8 @@ class AdminCommands(commands.Cog):
            - results
            - report
            - admin
+           - blue
+           - orange
         """
         print('Setting Channel: {} type: {}'.format(channel, channel_type.value))
 
@@ -227,6 +279,10 @@ class AdminCommands(commands.Cog):
             botSettings.SetResultsChannel(channel)
         elif (type is ChannelType.REPORT):
             botSettings.SetReportChannel(channel)
+        elif (type is ChannelType.BLUE_TEAM):
+            botSettings.SetBlueTeamChannel(channel)
+        elif (type is ChannelType.ORANGE_TEAM):
+            botSettings.SetOrangeTeamChannel(channel)
 
         await SendMessage(interaction, description='{0.mention} has been set as the {1.value} channel'.format(channel, type), color=discord.Color.blue())
 
@@ -241,7 +297,9 @@ class AdminCommands(commands.Cog):
         description+='Register Channel: {}\n'.format('Not setup' if botSettings.registerChannel is None else botSettings.registerChannel.mention)
         description+='Report Channel: {}\n'.format('Not setup' if botSettings.reportChannel is None else botSettings.reportChannel.mention)
         description+='Results Channel: {}\n'.format('Not setup' if botSettings.resultsChannel is None else botSettings.resultsChannel.mention)
-        description+='Admin Channel: {}'.format('Not setup' if botSettings.adminChannel is None else botSettings.adminChannel.mention)
+        description+='Admin Channel: {}\n'.format('Not setup' if botSettings.adminChannel is None else botSettings.adminChannel.mention)
+        description+='Blue Team Channel: {}\n'.format('Not setup' if botSettings.blueTeamChannel is None else botSettings.blueTeamChannel.mention)
+        description+='Orange Team Channel: {}'.format('Not setup' if botSettings.orangeTeamChannel is None else botSettings.orangeTeamChannel.mention)
 
         await SendMessage(interaction, description=description, color=discord.Color.blue())
 
@@ -1038,6 +1096,9 @@ class AdminCommands(commands.Cog):
         if (not botSettings.DoesMapPoolExist(pool_name)):
             raise InvalidMapPool(pool_name)
 
+        if (botSettings.IsPoolEmpty(pool_name)):
+            raise PoolIsEmpty(pool_name)
+
         botSettings.SetCurrentMapPool(pool_name)
         await SendMessage(interaction, description='`{}` has been set as the current map pool.'.format(pool_name), color=discord.Color.blue())
 
@@ -1057,6 +1118,9 @@ class AdminCommands(commands.Cog):
 
         if (not botSettings.DoesMapPoolExist(pool_name)):
             raise InvalidMapPool(pool_name)
+
+        if (botSettings.IsPoolEmpty(pool_name)):
+            raise PoolIsEmpty(pool_name)
 
         if (not matchService.IsMatchInProgress()):
             raise CantForceMapPool()
@@ -1108,6 +1172,9 @@ class AdminCommands(commands.Cog):
 
         # Now try to swap
         await matchService.SwapPlayers(interaction, player1, player2)
+
+        if (stratRouletteService.IsMatchInProgress()):
+            await stratRouletteService.UpdateTeams(matchService.GetTeam1Players(), matchService.GetTeam2Players())
  
     @GuildCommand(name='removestrat')
     @IsValidChannel(ChannelType.ADMIN)
@@ -1119,6 +1186,8 @@ class AdminCommands(commands.Cog):
            **int:** <index>
            The index of the strat you want to remove.
         """
+        print('Removing strat {}'.format(index))
+
         if (len(botSettings.strats) == 0):
             raise NoStratRouletteStrats()
 
@@ -1133,6 +1202,43 @@ class AdminCommands(commands.Cog):
         message = '[{}] Strat Removed `[{}] {}`'.format(type.name, title, strat)
         await SendMessage(interaction, description=message, color=discord.Color.blue())
 
+    @GuildCommand(name='startroulette')
+    @IsValidChannel(ChannelType.LOBBY)
+    @IsAdmin()
+    @app_commands.describe(force_pool='Forces the match to use the specified map pool.')
+    @app_commands.autocomplete(force_pool=PoolNameAutoComplete)
+    async def OnStartStratRouletteMatch(self, interaction:discord.Interaction, force_pool:str = ""):
+        """Starts the Strat Roulette Match
+        
+           **str:** <force_pool> (Optional)
+           Forces the match to use the specified map pool.
+        """
+        print('Starting Strat Roulette! Force Pool: {}'.format('None' if force_pool == '' else force_pool))
+
+        if (force_pool != '' and not botSettings.DoesMapPoolExist(force_pool)):
+            raise InvalidMapPool(force_pool)
+
+        if (force_pool != '' and botSettings.IsPoolEmpty(force_pool)):
+            raise PoolIsEmpty(force_pool)
+
+        if (not matchService.IsMatchInProgress()):
+            if (not matchService.IsQueueEmpty()):
+                poolProperName = '' if force_pool == '' else botSettings.GetMapPoolProperName(force_pool)
+                await stratRouletteService.QueueStartMatch(poolProperName)
+                await SendMessage(interaction, description='_loads revolver_ Let the fun begin!', color=discord.Color.blue())
+                return
+            else:
+                raise CantStartStratRoulette()
+
+        await stratRouletteService.StartMatch(matchService.GetTeam1Players(), matchService.GetTeam2Players())
+
+        await SendMessage(interaction, description='_loads revolver_ Let the fun begin!', color=discord.Color.blue())
+
+        # Change the map pool second so we don't accidently invalidate the interaction
+        if (force_pool != ''):
+            await matchService.ForceMapPool(interaction, botSettings.GetMapPoolProperName(force_pool), useInteraction=False)
+
+    @OnStartStratRouletteMatch.error
     @OnRecallMatch.error
     @OnRemoveStratRouletteStrat.error
     @OnRemoveMapPoolMap.error

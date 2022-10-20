@@ -1,6 +1,6 @@
 from data.botsettings import ChannelType, InvalidCommandChannel, InvalidOwnerCommandChannel, UserNotAdmin, UserNotOwner, UserNotActive
 from data.playerdata import UserNotRegistered
-from utils.chatutils import SendChannelMessage, SendMessage
+from utils.chatutils import SendChannelMessage
 from globals import *
 from discord import app_commands
 from discord.ext import commands

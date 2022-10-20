@@ -77,5 +77,6 @@ async def block_dms(ctx):
     return ctx.guild is not None
 
 matchService.Init(bot, botSettings)
+stratRouletteService.Init(bot, botSettings)
 
 bot.run(token)

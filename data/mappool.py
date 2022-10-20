@@ -33,6 +33,11 @@ class InvalidMapPoolType(commands.BadArgument):
         self.argument = argument
         super().__init__('Map Pool Type `{}` is not valid.'.format(argument))
 
+class PoolIsEmpty(commands.BadArgument):
+    def __init__(self, argument):
+        self.argument = argument
+        super().__init__('There are no valid maps to select from in Map Pool {}'.format(argument))
+
 class MapPoolType(Enum):
     ALL = 0
     CUSTOM = 1

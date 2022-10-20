@@ -27,6 +27,10 @@ class PlayerData(Document):
     _highestLoseStreak = IntField(default=0)
     _name = StringField(default='')
     _user = IntField(default=-1)
+    _stratRouletteMatchesPlayed = IntField(default=0)
+    _stratRouletteTotalRerolls = IntField(default=0)
+    _stratRouletteOvertimesCalled = IntField(default=0)
+    _stratRouletteOvertimeMistakes = IntField(default=0)
 
     # Settings
     mmr = 0
@@ -41,6 +45,10 @@ class PlayerData(Document):
     highestLoseStreak = 0
     name = '' # The name choosen by the user when registering
     user = None # discord.User
+    stratRouletteMatchesPlayed = 0
+    stratRouletteTotalRerolls = 0
+    stratRouletteOvertimesCalled = 0
+    stratRouletteOvertimeMistakes = 0
 
     async def Init(self, bot):
         self.mmr = self._mmr
@@ -55,6 +63,10 @@ class PlayerData(Document):
         self.loses = self._loses
         self.name = self._name
         self.user = bot.get_user(self._user)
+        self.stratRouletteMatchesPlayed = self._stratRouletteMatchesPlayed
+        self.stratRouletteTotalRerolls = self._stratRouletteTotalRerolls
+        self.stratRouletteOvertimesCalled = self._stratRouletteOvertimesCalled
+        self.stratRouletteOvertimeMistakes = self._stratRouletteOvertimeMistakes
 
     def RedoData(self, oldDelta:int, mmrDelta:int, prevResult:TeamResult, newResult:TeamResult):
         # undo the previous match
@@ -143,6 +155,24 @@ class PlayerData(Document):
         self._highestWinStreak = self.highestWinStreak
         self._highestLoseStreak = self.highestLoseStreak
         self._matchesPlayed = self.matchesPlayed
+        self.save()
+
+    def IncrementStratRoulette(self, shouldIncrementGame:bool, rerolls:int, calledOvertime:bool, madeOvertimeMistake:bool):
+        if (shouldIncrementGame):
+            self._stratRouletteMatchesPlayed += 1
+            self.stratRouletteMatchesPlayed += 1
+
+        self._stratRouletteTotalRerolls += rerolls
+        self.stratRouletteTotalRerolls += rerolls
+
+        if (calledOvertime):
+            self._stratRouletteOvertimesCalled += 1 
+            self.stratRouletteOvertimesCalled += 1 
+
+        if (madeOvertimeMistake):
+            self._stratRouletteOvertimeMistakes += 1 
+            self.stratRouletteOvertimeMistakes += 1 
+
         self.save()
     
     def SetUser(self, user:discord.User, name:str):
