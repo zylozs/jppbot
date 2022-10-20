@@ -4,7 +4,7 @@ from data.playerdata import UserNotRegistered, UserAlreadyRegistered
 from data.matchhistorydata import MatchHistoryData, MatchResult
 from data.quipdata import QuipType
 from data.mappool import MapPoolType
-from data.stratroulettedata import StratRouletteTeamType, NoStratRouletteStrats, InvalidStratRouletteTeamType
+from data.stratroulettedata import StratRouletteMatchData, StratRouletteTeamType, NoStratRouletteStrats, InvalidStratRouletteTeamType
 from services.matchservice import PlayerAlreadyQueued, PlayerNotQueued
 from utils.chatutils import SendMessage, SendMessages
 from utils.botutils import IsValidChannel, IsActivePlayer, GuildCommand
@@ -535,12 +535,6 @@ class BotCommands(commands.Cog):
                 else:
                     players[player._id].lossesAgainst += 1
 
-
-            #if (player in winningTeam):
-                #players[player].
-
-        # TODO: Calculate how many times we played with each player so we can do player stats
-
         team1Matches = MatchHistoryData.objects(_team1__match={'_id':interaction.user.id}) 
         team2Matches = MatchHistoryData.objects(_team2__match={'_id':interaction.user.id})
 
@@ -666,7 +660,24 @@ class BotCommands(commands.Cog):
             numPlayed = rivalPlayer.lossesAgainst
             playerField['value'] += '**Rival:** {} ({} losses to)\n'.format(botSettings.GetUserNameByID(rivalPlayer.id), numPlayed)
 
-        await SendMessage(interaction, title=title, fields=[mmrField, matchField, mapField, playerField], ephemeral=(not broadcast), color=discord.Color.blue())
+        stratRouletteField = {}
+        stratRouletteField['name'] = 'Strat Roulette History'
+        stratRouletteField['value'] = ''
+        stratRouletteField['inline'] = True
+
+        stratRouletteMatchesPercent = 0
+        if (player.matchesPlayed > 0):
+            stratRouletteMatchesPercent = player.stratRouletteMatchesPlayed / player.matchesPlayed
+
+        stratRouletteField['value'] += '**Times Played:** {} ({:.2f}%)\n'.format(player.stratRouletteMatchesPlayed, stratRouletteMatchesPercent * 100)
+        stratRouletteField['value'] += '**Strats Rerolled:** {}\n'.format(player.stratRouletteTotalRerolls)
+        stratRouletteField['value'] += '**Overtimes Called:** {}\n'.format(player.stratRouletteOvertimesCalled)
+        mistakePercent = 0
+        if (player.stratRouletteOvertimesCalled > 0):
+            mistakePercent = player.stratRouletteOvertimeMistakes / player.stratRouletteOvertimesCalled
+        stratRouletteField['value'] += '**Overtime Call Mistakes:** {} ({:.2f}%)'.format(player.stratRouletteOvertimeMistakes, mistakePercent * 100)
+
+        await SendMessage(interaction, title=title, fields=[mmrField, matchField, mapField, playerField, stratRouletteField], ephemeral=(not broadcast), color=discord.Color.blue())
 
     @GuildCommand(name='slap')
     @app_commands.describe(member='The person you wish to slap.')
