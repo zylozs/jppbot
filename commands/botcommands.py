@@ -175,11 +175,11 @@ class BotCommands(commands.Cog):
 
         # Early out for the simple case where we only have to start a match
         if (not stratRouletteService.IsMatchQueued()):
-            await matchService.StartMatch(id)
+            result = await matchService.StartMatch(id)
 
             # If a strat roulette match was started afterwards, we should make sure to stop it
             if (stratRouletteService.IsMatchInProgress()):
-                await stratRouletteService.StopMatch()
+                await stratRouletteService.StopMatch(id, result)
             return
 
         # If we need to start a match and a strat roulette match, do some task scheduling
@@ -192,7 +192,13 @@ class BotCommands(commands.Cog):
         )
 
         await matchServiceTask
-        await stratRouletteService.StopMatch()
+        lastMatchResult = matchService.GetLastMatchResult()
+        matchResult = MatchResult.INVALID
+
+        if (lastMatchResult is not None and lastMatchResult[0] == id):
+            matchResult = lastMatchResult[1]
+
+        await stratRouletteService.StopMatch(id, matchResult)
         await stratRouletteServiceTask 
 
     @GuildCommand(name='leave')

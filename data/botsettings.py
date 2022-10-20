@@ -1,3 +1,4 @@
+from data.matchhistorydata import MatchResult
 from data.playerdata import PlayerData
 from data.mmrrole import MMRRole 
 from data.mappool import MapPool, MapPoolType
@@ -5,7 +6,7 @@ from services.matchservice import TeamResult, FakeUser
 from data.siegemap import SiegeMap
 from data.activitydata import ActivityData
 from data.quipdata import QuipData, QuipType
-from data.stratroulettedata import StratRouletteData, StratRouletteTeamType
+from data.stratroulettedata import StratRouletteData, StratRouletteGlobalMatchData, StratRouletteTeamType
 from enum import Enum
 from discord.ext import commands
 from mongoengine import Document, IntField, StringField
@@ -169,6 +170,7 @@ class BotSettings(Document):
     activities = []
     quips = []
     strats = []
+    globalStratData = None
 
     def _GetGuild(self, id, bot):
         if (len(bot.guilds) == 0):
@@ -266,6 +268,13 @@ class BotSettings(Document):
             self.strats.append(strat)
 
         self.strats.sort(key=lambda strat : strat.type)
+
+        # Strat Roulette Global Match Data
+        # Load or create one. There should only ever be one!
+        if (len(StratRouletteGlobalMatchData.objects) > 0):
+            self.globalStratData = StratRouletteGlobalMatchData.objects.first()
+        else:
+            self.globalStratData = StratRouletteGlobalMatchData()
 
         print('Settings Loaded')
 
@@ -665,6 +674,23 @@ class BotSettings(Document):
 
         if (poolName is not None and self.DoesMapPoolExist(poolName)):
             self.pools[poolName.lower()].IncrementTimesPlayed()
+
+    def DeclareStratRouletteComplete(self, matchResult:MatchResult, totalRerolls:int, team1Members:list[discord.Member], team2Members:list[discord.Member], rerollPlayers:list[int], overtimeCaller, overtimeFixer):
+        shouldIncrementGame = matchResult == MatchResult.TEAM1VICTORY or matchResult == MatchResult.TEAM2VICTORY
+        self.globalStratData.Increment(shouldIncrementGame, totalRerolls, overtimeCaller, overtimeFixer)
+
+        for member in team1Members:
+            self.DeclarePlayerStratRouletteComplete(member, shouldIncrementGame, rerollPlayers, overtimeCaller, overtimeFixer)
+
+        for member in team2Members:
+            self.DeclarePlayerStratRouletteComplete(member, shouldIncrementGame, rerollPlayers, overtimeCaller, overtimeFixer)
+
+    def DeclarePlayerStratRouletteComplete(self, member:discord.Member, shouldIncrementGame:bool, rerollPlayers:list[int], overtimeCaller, overtimeFixer):
+        if member is not None and self.IsUserRegisteredByID(member.id):
+            rerolls = rerollPlayers.count(member.id) 
+            calledOvertime = overtimeCaller == member
+            madeOvertimeMistake = overtimeFixer is not None
+            self.registeredPlayers[member.id].IncrementStratRoulette(shouldIncrementGame, rerolls, calledOvertime, madeOvertimeMistake)
 
     # Union[discord.User, FakeUser] user
     def DeclareWinner(self, user, mmrDelta=None):

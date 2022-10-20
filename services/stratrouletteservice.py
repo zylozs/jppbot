@@ -1,6 +1,8 @@
+from tkinter import W
 import discord
 from discord.ext import commands
-from data.stratroulettedata import StratRouletteTeam, StratRouletteTeamType
+from data.matchhistorydata import MatchResult
+from data.stratroulettedata import StratRouletteMatchData, StratRouletteTeam, StratRouletteTeamType
 from utils.chatutils import EditMessage, EditViewMessage, SendChannelMessage, SendMessage, SendMessageEdit
 
 class StratRouletteMatchIsActive(commands.BadArgument):
@@ -32,11 +34,14 @@ class StratRouletteTeamData(object):
     name = ''
     stratMessage = None
     stratView = None
+    totalRerolls = 0
+    rerollPlayers = []
 
     def __init__(self, _members:list[discord.Member], _type:StratRouletteTeamType, _name:str):
         self.members = _members 
         self.type = _type
         self.name = _name
+        self.rerollPlayers = []
 
 class StratRouletteOvertimeRoleDropdownView(discord.ui.View):
     result = StratRouletteTeamType.INVALID
@@ -134,6 +139,7 @@ class StratRouletteStratViewBase(discord.ui.View):
             return
 
         if (roleDropdown.result != StratRouletteTeamType.INVALID):
+            self.service.SetOvertimeFixer(interaction.user)
             self.service.SetOvertimeRole(self.team, roleDropdown.result)
             await self.service.UpdateOvertimeStrats()
 
@@ -152,6 +158,12 @@ class StratRouletteStratViewBase(discord.ui.View):
             button.label = 'Reroll (0)'
             button.style = discord.ButtonStyle.grey
             button.disabled = True
+
+            self.team.totalRerolls += 1
+            self.team.rerollPlayers.append(interaction.user.id)
+
+            if self.team.strat:
+                self.team.strat.IncrementTimesRerolled()
 
             self.team.strat = self.botSettings.GetRandomStrat(self.team.type, self.team.strat)
 
@@ -209,6 +221,7 @@ class StratRouletteLastRoundView(StratRouletteStratViewBase):
             return
 
         if (roleDropdown.result != StratRouletteTeamType.INVALID):
+            self.service.SetOvertimeCaller(interaction.user)
             self.service.SetOvertimeRole(self.team, roleDropdown.result)
             await self.service.StartNextRound()
             self.stop()
@@ -227,6 +240,8 @@ class StratRouletteMatch(object):
     team1 = None
     team2 = None
     overtimeRoleTeam1 = StratRouletteTeamType.INVALID
+    overtimeCaller = None
+    overtimeFixer = None
 
     roundNumber = 0
 
@@ -313,7 +328,7 @@ class StratRouletteService(object):
 
         return False
 
-    async def StopMatch(self):
+    async def StopMatch(self, matchID, matchResult:MatchResult):
         if (self.activeMatch is None):
             raise CantStopStratRoulette()
 
@@ -326,6 +341,8 @@ class StratRouletteService(object):
             await self.activeMatch.team2.stratMessage.edit(view=self.activeMatch.team2.stratView)
 
         await SendChannelMessage(self.botSettings.lobbyChannel, description='_puts down the revolver_ Thanks for playing Strat Roulette!', color=discord.Color.blue())
+
+        self.StoreMatchData(matchID, matchResult)
 
         self.activeMatch = None
         self.forcedPool = ''
@@ -383,6 +400,12 @@ class StratRouletteService(object):
         elif (self.activeMatch.roundNumber >= 10):
             return
 
+        # Update the tracking
+        if self.activeMatch.team1.strat:
+            self.activeMatch.team1.strat.IncrementTimesPlayed()
+        if self.activeMatch.team2.strat:
+            self.activeMatch.team2.strat.IncrementTimesPlayed()
+
         self.activeMatch.team1.strat = self.botSettings.GetRandomStrat(self.activeMatch.team1.type, self.activeMatch.team1.strat)
         self.activeMatch.team2.strat = self.botSettings.GetRandomStrat(self.activeMatch.team2.type, self.activeMatch.team2.strat)
 
@@ -410,6 +433,12 @@ class StratRouletteService(object):
         if (self.activeMatch.roundNumber >= 7):
             self.activeMatch.FixOvertimeRoles()
 
+    def SetOvertimeCaller(self, caller:discord.Member):
+        self.activeMatch.overtimeCaller = caller
+
+    def SetOvertimeFixer(self, fixer:discord.Member):
+        self.activeMatch.overtimeFixer = fixer 
+
     async def UpdateOvertimeStrats(self):
         # Reroll the invalid strats for the updated roles
         if (self.activeMatch.team1.strat.type != StratRouletteTeamType.BOTH):
@@ -420,6 +449,19 @@ class StratRouletteService(object):
 
         await self.SendStrat(self.activeMatch.team1, sendNewMessage = False)
         await self.SendStrat(self.activeMatch.team2, sendNewMessage = False)
+
+    def StoreMatchData(self, matchID, matchResult:MatchResult):
+        if (matchResult == MatchResult.INVALID):
+            return
+
+        rerollPlayers = self.activeMatch.team1.rerollPlayers + self.activeMatch.team2.rerollPlayers
+
+        if (matchResult != MatchResult.CANCELLED):
+            data = StratRouletteMatchData()
+            data.StoreData(matchID, self.activeMatch.roundNumber, self.activeMatch.team1.totalRerolls, self.activeMatch.team2.totalRerolls, rerollPlayers, self.activeMatch.overtimeCaller, self.activeMatch.overtimeFixer)
+
+        totalRerolls = self.activeMatch.team1.totalRerolls + self.activeMatch.team2.totalRerolls
+        self.botSettings.DeclareStratRouletteComplete(matchResult, totalRerolls, self.activeMatch.team1.members, self.activeMatch.team2.members, rerollPlayers, self.activeMatch.overtimeCaller, self.activeMatch.overtimeFixer)
 
     def IsMatchInProgress(self):
         return self.activeMatch is not None

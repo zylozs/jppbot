@@ -248,6 +248,7 @@ class MatchService(object):
     bot = None
     botSettings = None
     forcedMap = None
+    lastMatchResult = None
 
     def Init(self, bot, botSettings):
         self.bot = bot
@@ -586,7 +587,7 @@ class MatchService(object):
         newMatch.matchMessage = message
         newMatch.adminMessage = adminMessage 
 
-        await self.WaitForMatchResult(id)
+        return await self.WaitForMatchResult(id)
 
     async def WaitForMatchResult(self, id):
         view = self.matchesStarted[id].resultsView
@@ -595,21 +596,20 @@ class MatchService(object):
             timedOut = await view.wait()
         except:
             print('Something has gone very wrong here')
-            return
+            return MatchResult.INVALID
 
         if (timedOut):
-            await self.CallMatch(self.bot.user, id, MatchResult.CANCELLED)
-            return
+            return await self.CallMatch(self.bot.user, id, MatchResult.CANCELLED)
 
         # If the view is invalid for whatever reason, just don't call the match
         if (view.result == MatchResult.INVALID):
             print('There is no result so ignore this view')
-            return
+            return MatchResult.INVALID
 
         if (view.user == None):
             view.user = self.bot.user
 
-        await self.CallMatch(view.user, id, view.result)
+        return await self.CallMatch(view.user, id, view.result)
 
     # Union[discord.Member, FakeUser] member 
     async def UpdateRoles(self, member, oldRole, newRole):
@@ -681,6 +681,8 @@ class MatchService(object):
         if (id not in self.matchesStarted):
             raise InvalidMatchID(id)
 
+        self.lastMatchResult = (id, matchResult)
+
         title = 'Match Results: Game #{}'.format(id)
         footer = 'This match was called by {}'.format(user)
         description = '**Creation Time:** {}\n**Map:** {}\n**Map Pool:** {}'.format(self.matchesStarted[id].creationTime, self.matchesStarted[id].map, 'None' if self.matchesStarted[id].pool is None else self.matchesStarted[id].pool)
@@ -700,7 +702,7 @@ class MatchService(object):
             del self.matchesStarted[id]
 
             await SendChannelMessage(self.botSettings.resultsChannel, title=title, description=description, thumbnail=thumbnail, footer=footer, color=discord.Color.blue())
-            return
+            return matchResult 
 
         winnerTeamData, winnerField = await self.GetTeamData(winnerTeam, winnerName, TeamResult.WIN)
         loserTeamData, loserField = await self.GetTeamData(loserTeam, loserName, TeamResult.LOSE)
@@ -711,6 +713,7 @@ class MatchService(object):
         del self.matchesStarted[id]
 
         await SendChannelMessage(self.botSettings.resultsChannel, title=title, description=description, thumbnail=thumbnail, fields=[winnerField, loserField], footer=footer, color=discord.Color.blue())
+        return matchResult
 
     def IsPlayerQueued(self, user:discord.User):
         for player in self.queuedPlayers:
@@ -761,3 +764,6 @@ class MatchService(object):
 
         match = self.matchesStarted[key]
         return [ player.user for player in match.team2 ]
+
+    def GetLastMatchResult(self):
+        return self.lastMatchResult
